@@ -42,6 +42,8 @@ import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.conf.*;
 
+import edu.berkeley.xtrace.*;
+
 /** An RpcEngine implementation for Writable data. */
 @InterfaceStability.Evolving
 public class WritableRpcEngine implements RpcEngine {

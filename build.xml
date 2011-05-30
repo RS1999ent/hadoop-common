@@ -214,7 +214,7 @@
   <path id="classpath">
     <pathelement location="${build.classes}"/>
     <pathelement location="${conf.dir}"/>
-    <pathelement location="${build.dir}/xtrace-2.0.jar"/>
+    <pathelement location="${basedir}/xtrace-2.0.jar"/>
     <path refid="ivy-common.classpath"/>
   </path>
 
