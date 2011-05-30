@@ -241,6 +241,17 @@ public class WritableRpcEngine implements RpcEngine {
           ticket, rpcTimeout, conf);
       this.client = CLIENTS.getClient(conf, factory);
     }
+    
+    //ww2
+    public String getClientName(Method method) {
+      String agent = method.getDeclaringClass().getSimpleName();
+      // Try to find short name
+      if (agent.indexOf("ClientProtocol") != -1)
+        agent = "DFSClient";
+      else if (agent.indexOf("ClientDatanodeProtocol") != -1)
+        agent = "Datanode";
+      return agent; 
+    }
 
     public Object invoke(Object proxy, Method method, Object[] args)
       throws Throwable {
@@ -249,12 +260,19 @@ public class WritableRpcEngine implements RpcEngine {
         startTime = System.currentTimeMillis();
       }
 
+      //ww2 
+      String agent = getClientName(method);
+      XTraceContext.callStart(agent, method.getName());
+
       ObjectWritable value = (ObjectWritable)
         client.call(new Invocation(method, args), remoteId);
       if (LOG.isDebugEnabled()) {
         long callTime = System.currentTimeMillis() - startTime;
         LOG.debug("Call: " + method.getName() + " " + callTime);
       }
+
+      XTraceContext.callEnd(agent, method.getName());
+
       return value.get();
     }
     
@@ -385,8 +403,21 @@ public class WritableRpcEngine implements RpcEngine {
       this.verbose = verbose;
     }
 
+    // ww2
+    private String getServerName(Class<?> protocol) {
+      String agent = protocol.getSimpleName();
+      // The only caller of this function is the namenode
+      if (agent.indexOf("ClientProtocol") != -1 ||
+          agent.indexOf("ClientDatanodeProtocol") != -1)
+        agent = "Namenode";
+      return agent;
+    }
+
     public Writable call(Class<?> protocol, Writable param, long receivedTime) 
     throws IOException {
+      //ww2
+      String agent = getServerName(protocol);
+
       try {
         Invocation call = (Invocation)param;
         if (verbose) log("Call: " + call);
@@ -421,7 +452,14 @@ public class WritableRpcEngine implements RpcEngine {
         }
 
         long startTime = System.currentTimeMillis();
+
+        //ww2
+        XTraceContext.callStart(agent, method.getName());
+
         Object value = method.invoke(instance, call.getParameters());
+
+        XTraceContext.callEnd(agent, method.getName());
+
         int processingTime = (int) (System.currentTimeMillis() - startTime);
         int qTime = (int) (startTime-receivedTime);
         if (LOG.isDebugEnabled()) {

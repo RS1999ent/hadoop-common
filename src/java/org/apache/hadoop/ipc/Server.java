@@ -87,6 +87,8 @@ import org.apache.hadoop.security.token.SecretManager.InvalidToken;
 import org.apache.hadoop.util.ReflectionUtils;
 import org.apache.hadoop.util.StringUtils;
 
+import edu.berkeley.xtrace.*;
+
 /** An abstract IPC service.  IPC calls take a single {@link Writable} as a
  * parameter, and return a {@link Writable} as their value.  A service runs on
  * a port and is defined by a parameter class and a value class.
@@ -275,6 +277,9 @@ public abstract class Server {
     private long timestamp;     // the time received when response is null
                                    // the time served when response is not null
     private ByteBuffer response;                      // the response for this call
+
+    //ww2
+    private XTraceMetadata metadata;
 
     public Call(int id, Writable param, Connection connection) { 
       this.id = id;
@@ -1347,10 +1352,26 @@ public abstract class Server {
         }
       }
     }
+
+    //ww2
+    private XTraceMetadata receiveMetadata(DataInputStream dis) throws IOException {
+      int length = dis.readInt();
+      XTraceMetadata metadata = null;
+      if (length > 0) {
+        byte[] md = new byte[length];
+        dis.read(md);
+        metadata = XTraceMetadata.createFromBytes(md, 0, length);
+      }
+      return metadata;
+    }
     
     private void processData(byte[] buf) throws  IOException, InterruptedException {
       DataInputStream dis =
         new DataInputStream(new ByteArrayInputStream(buf));
+
+      //ww2
+      XTraceMetadata metadata = receiveMetadata(dis); 
+
       int id = dis.readInt();                    // try to read an id
         
       if (LOG.isDebugEnabled())
@@ -1360,6 +1381,9 @@ public abstract class Server {
       param.readFields(dis);        
         
       Call call = new Call(id, param, this);
+      
+      call.metadata = metadata;
+      
       callQueue.put(call);              // queue the call; maybe blocked here
       incRpcCount();  // Increment the rpc count
     }
@@ -1431,6 +1455,10 @@ public abstract class Server {
           Writable value = null;
 
           CurCall.set(call);
+          
+          //ww2
+          XTraceMetadata oldContext = XTraceContext.switchThreadContext(call.metadata);
+
           try {
             // Make the call as the user via Subject.doAs, thus associating
             // the call with the Subject
@@ -1461,6 +1489,10 @@ public abstract class Server {
               error = error.substring(exceptionHdr.length());
             }
           }
+
+          call.metadata = XTraceContext.getThreadContext();
+          XTraceContext.setThreadContext(oldContext);
+
           CurCall.set(null);
           synchronized (call.connection.responseQueue) {
             // setupResponse() needs to be sync'ed together with 
@@ -1587,6 +1619,16 @@ public abstract class Server {
   throws IOException {
     response.reset();
     DataOutputStream out = new DataOutputStream(response);
+
+    //ww2
+    if (call.metadata == null)
+      out.writeInt(-1);
+    else {
+      byte[] md = call.metadata.pack();
+      out.writeInt(md.length);
+      out.write(md, 0, md.length);
+    }
+
     out.writeInt(call.id);                // write call id
     out.writeInt(status.state);           // write status
 
