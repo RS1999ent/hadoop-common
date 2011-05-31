@@ -483,7 +483,19 @@ public class Client {
           call.param.write(d);
           byte[] data = d.getData();
           int dataLength = d.getLength();
-          out.writeInt(dataLength);      //first put the data length
+
+          // ww2
+          if (call.metadata == null) {
+            out.writeInt(dataLength + Integer.SIZE / 8);
+            out.writeInt(-1);
+          } else {
+            byte[] md = call.metadata.pack();
+            out.writeInt(dataLength + Integer.SIZE / 8 + md.length);
+            out.writeInt(md.length);
+            out.write(md, 0, md.length);
+          }
+
+          //out.writeInt(dataLength);      //first put the data length
           out.write(data, 0, dataLength);//write the data
           out.flush();
         }
@@ -495,6 +507,18 @@ public class Client {
         IOUtils.closeStream(d);
       }
     }  
+    
+    //ww2
+    private XTraceMetadata receiveMetadata() throws IOException {
+      int length = in.readInt();
+      XTraceMetadata metadata = null;
+      if (length > 0) {
+        byte[] md = new byte[length];
+        in.read(md);
+        metadata = XTraceMetadata.createFromBytes(md, 0, length);
+      }
+      return metadata;
+    }
 
     /* Receive a response.
      * Because only one receiver, so no synchronization on in.
@@ -506,6 +530,7 @@ public class Client {
       touch();
       
       try {
+        XTraceMetadata metadata = receiveMetadata();
         int id = in.readInt();                    // try to read an id
 
         if (LOG.isDebugEnabled())
@@ -513,16 +538,30 @@ public class Client {
 
         Call call = calls.get(id);
 
+        XTraceMetadata oldContext = XTraceContext.switchThreadContext(metadata);
+        call.metadata = metadata;
+
         int state = in.readInt();     // read call status
         if (state == Status.SUCCESS.state) {
+          
+          XTraceContext.rpcSuccess();
+          
           Writable value = ReflectionUtils.newInstance(valueClass, conf);
           value.readFields(in);                 // read value
           call.setValue(value);
           calls.remove(id);
         } else if (state == Status.ERROR.state) {
+          
+          XTraceContext.rpcError();
+          
           call.setException(new RemoteException(WritableUtils.readString(in),
                                                 WritableUtils.readString(in)));
+          // ww2 bug fix
+          calls.remove(id);
         } else if (state == Status.FATAL.state) {
+
+          XTraceContext.rpcException();
+
           // Close the connection
           markClosed(new RemoteException(WritableUtils.readString(in), 
                                          WritableUtils.readString(in)));
@@ -602,6 +641,9 @@ public class Client {
       super(param);
       this.results = results;
       this.index = index;
+      
+      //ww2
+      this.metadata = results.metadata[index];
     }
 
     /** Deliver result to result collector. */
@@ -616,9 +658,14 @@ public class Client {
     private int size;
     private int count;
 
+    //ww2
+    private XTraceMetadata[] metadata;
+
     public ParallelResults(int size) {
       this.values = new Writable[size];
       this.size = size;
+      
+      this.metadata = XTraceContext.rpcStart(size);
     }
 
     /** Collect a result. */
@@ -626,6 +673,9 @@ public class Client {
       values[call.index] = call.value;            // store the value
       count++;                                    // count it
       if (count == size)                          // if all values are in
+
+        XTraceContext.join(metadata, "RPC_JOIN");
+
         notify();                                 // then notify waiting caller
     }
   }
@@ -725,6 +775,10 @@ public class Client {
                        Class<?> protocol, UserGroupInformation ticket)  
                        throws InterruptedException, IOException {
     Call call = new Call(param);
+
+    // ww2
+    call.metadata = XTraceContext.rpcStart(1)[0];
+
     Connection connection = getConnection(addr, protocol, ticket, call);
     connection.sendParam(call);                 // send the parameter
     boolean interrupted = false;
@@ -742,6 +796,8 @@ public class Client {
         // set the interrupt flag now that we are done waiting
         Thread.currentThread().interrupt();
       }
+      
+      XTraceContext.setThreadContext(call.metadata);
 
       if (call.error != null) {
         if (call.error instanceof RemoteException) {

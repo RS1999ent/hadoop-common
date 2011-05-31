@@ -216,6 +216,9 @@ public abstract class Server {
                                    // the time served when response is not null
     private ByteBuffer response;                      // the response for this call
 
+    //ww2
+    private XTraceMetadata metadata;
+
     public Call(int id, Writable param, Connection connection) { 
       this.id = id;
       this.param = param;
@@ -898,11 +901,26 @@ public abstract class Server {
       user = SecurityUtil.getSubject(header.getUgi());
     }
     
+    //ww2
+    private XTraceMetadata receiveMetadata(DataInputStream dis) throws IOException {
+      int length = dis.readInt();
+      XTraceMetadata metadata = null;
+      if (length > 0) {
+        byte[] md = new byte[length];
+        dis.read(md);
+        metadata = XTraceMetadata.createFromBytes(md, 0, length);
+      }
+      return metadata;
+    }
+
     private void processData() throws  IOException, InterruptedException {
       DataInputStream dis =
         new DataInputStream(new ByteArrayInputStream(data.array()));
       int id = dis.readInt();                    // try to read an id
         
+      //ww2
+      XTraceMetadata metadata = receiveMetadata(dis); 
+
       if (LOG.isDebugEnabled())
         LOG.debug(" got #" + id);
 
@@ -910,6 +928,9 @@ public abstract class Server {
       param.readFields(dis);        
         
       Call call = new Call(id, param, this);
+      
+      call.metadata = metadata;
+      
       callQueue.put(call);              // queue the call; maybe blocked here
     }
 
@@ -951,6 +972,10 @@ public abstract class Server {
           Writable value = null;
 
           CurCall.set(call);
+          
+          //ww2
+          XTraceMetadata oldContext = XTraceContext.switchThreadContext(call.metadata);
+
           try {
             // Make the call as the user via Subject.doAs, thus associating
             // the call with the Subject
@@ -977,6 +1002,10 @@ public abstract class Server {
             errorClass = e.getClass().getName();
             error = StringUtils.stringifyException(e);
           }
+
+          call.metadata = XTraceContext.getThreadContext();
+          XTraceContext.setThreadContext(oldContext);
+
           CurCall.set(null);
 
           setupResponse(buf, call, 
@@ -1068,6 +1097,16 @@ public abstract class Server {
   throws IOException {
     response.reset();
     DataOutputStream out = new DataOutputStream(response);
+    
+    //ww2
+    if (call.metadata == null)
+      out.writeInt(-1);
+    else {
+      byte[] md = call.metadata.pack();
+      out.writeInt(md.length);
+      out.write(md, 0, md.length);
+    }
+
     out.writeInt(call.id);                // write call id
     out.writeInt(status.state);           // write status
 
