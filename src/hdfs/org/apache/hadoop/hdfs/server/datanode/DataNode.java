@@ -1107,7 +1107,8 @@ public class DataNode extends Configured
   public static final int PKT_HEADER_LEN = ( 4 + /* Packet payload length */
                                       8 + /* offset in block */
                                       8 + /* seqno */
-                                      1   /* isLastPacketInBlock */);
+                                      1 + /* isLastPacketInBlock */
+                                      17);  //ww2
   
 
 

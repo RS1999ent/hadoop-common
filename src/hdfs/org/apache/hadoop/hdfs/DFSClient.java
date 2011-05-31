@@ -1654,11 +1654,15 @@ public class DFSClient implements FSConstants, java.io.Closeable {
     
     DFSInputStream(String src, int buffersize, boolean verifyChecksum
                    ) throws IOException {
+      XTraceContext.newTrace();
+      XTraceContext.callStart("DFSClient", "open");
       this.verifyChecksum = verifyChecksum;
       this.buffersize = buffersize;
       this.src = src;
       prefetchSize = conf.getLong("dfs.read.prefetch.size", prefetchSize);
       openInfo();
+      XTraceContext.callEnd("DFSClient", "open");
+      XTraceContext.endTrace();
     }
 
     /**
@@ -1756,8 +1760,10 @@ public class DFSClient implements FSConstants, java.io.Closeable {
         boolean updatePosition) throws IOException {
       assert (locatedBlocks != null) : "locatedBlocks is null";
       // search cached blocks first
+      XTraceContext.cacheSearch("DFSClient", "BlockLocation");
       int targetBlockIdx = locatedBlocks.findBlock(offset);
       if (targetBlockIdx < 0) { // block is not cached
+        XTraceContext.cacheMiss("DFSClient", "BlockLocation");
         targetBlockIdx = LocatedBlocks.getInsertIndex(targetBlockIdx);
         // fetch more blocks
         LocatedBlocks newBlocks;
@@ -1765,6 +1771,9 @@ public class DFSClient implements FSConstants, java.io.Closeable {
         assert (newBlocks != null) : "Could not find target position " + offset;
         locatedBlocks.insertRange(targetBlockIdx, newBlocks.getLocatedBlocks());
       }
+      //ww2
+      else
+        XTraceContext.cacheHit("DFSClient", "BlockLocation");
       LocatedBlock blk = locatedBlocks.get(targetBlockIdx);
       // update current position
       if (updatePosition) {
@@ -1846,6 +1855,8 @@ public class DFSClient implements FSConstants, java.io.Closeable {
       // Connect to best DataNode for desired Block, with potential offset
       //
       DatanodeInfo chosenNode = null;
+      XTraceContext.newTrace();
+      XTraceContext.callStart("DFSClient", "blockSeekTo");
       while (s == null) {
         DNAddrPair retval = chooseDataNode(targetBlock);
         chosenNode = retval.info;
@@ -1861,6 +1872,8 @@ public class DFSClient implements FSConstants, java.io.Closeable {
               blk.getGenerationStamp(),
               offsetIntoBlock, blk.getNumBytes() - offsetIntoBlock,
               buffersize, verifyChecksum, clientName);
+          XTraceContext.callEnd("DFSClient", "blockSeekTo");
+          XTraceContext.endTrace();
           return chosenNode;
         } catch (IOException ex) {
           // Put chosen node into dead list, continue
@@ -2465,6 +2478,13 @@ public class DFSClient implements FSConstants, java.io.Closeable {
         buffer.putLong(offsetInBlock); 
         buffer.putLong(seqno);
         buffer.put((byte) ((lastPacketInBlock) ? 1 : 0));
+
+        //ww2
+        if (XTraceContext.getThreadContext() != null)
+          buffer.put(XTraceContext.getThreadContext().pack());
+        else
+          buffer.put(new byte[17]);
+
         //end of pkt header
         buffer.putInt(dataLen); // actual data length, excluding checksum.
         
@@ -2548,6 +2568,8 @@ public class DFSClient implements FSConstants, java.io.Closeable {
               // get new block from namenode.
               if (blockStream == null) {
                 LOG.debug("Allocating new block");
+                XTraceContext.newTrace();
+                XTraceContext.newBlock("DFSClient");
                 nodes = nextBlockOutputStream(src); 
                 this.setName("DataStreamer for file " + src +
                              " block " + block);
@@ -2576,6 +2598,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
               }
               
               // write out data to remote datanode
+              XTraceContext.sendPacket("DFSClient", one.seqno, null);
               blockStream.write(buf.array(), buf.position(), buf.remaining());
               
               if (one.lastPacketInBlock) {
@@ -2617,6 +2640,9 @@ public class DFSClient implements FSConstants, java.io.Closeable {
             }
             LOG.debug("Closing old block " + block);
             this.setName("DataStreamer for file " + src);
+
+            //ww2
+            XTraceContext.endTrace();
 
             response.close();        // ignore all errors in Response
             try {
@@ -2675,6 +2701,9 @@ public class DFSClient implements FSConstants, java.io.Closeable {
       private DatanodeInfo[] targets = null;
       private boolean lastPacketInBlock = false;
 
+      //ww2
+      private XTraceMetadata previousAck = null;
+
       ResponseProcessor (DatanodeInfo[] targets) {
         this.targets = targets;
       }
@@ -2706,6 +2735,8 @@ public class DFSClient implements FSConstants, java.io.Closeable {
             }
 
             long seqno = ack.getSeqno();
+            XTraceContext.setThreadContext(ack.metadata);
+            XTraceContext.receiveAck("DFSClient", seqno); 
             assert seqno != PipelineAck.UNKOWN_SEQNO :
               "Ack for unkown seqno should be a failed ack: " + ack;
             if (seqno == Packet.HEART_BEAT_SEQNO) {  // a heartbeat ack
@@ -2722,6 +2753,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
                                     " for block " + block + " " +
                                     one.seqno + " but received " + seqno);
             }
+            previousAck = XTraceContext.acceptAck("DFSClient", seqno, previousAck); 
             lastPacketInBlock = one.lastPacketInBlock;
 
             synchronized (ackQueue) {
@@ -2750,6 +2782,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
             ackQueue.notifyAll();
           }
         }
+        XTraceContext.endBlock("DFSClient");
       }
 
       void close() {
@@ -3160,6 +3193,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
                                      DataNode.SMALL_BUFFER_SIZE));
         blockReplyStream = new DataInputStream(NetUtils.getInputStream(s));
 
+        XTraceContext.opWriteBlockRequest("DFSClient");
         out.writeShort( DataTransferProtocol.DATA_TRANSFER_VERSION );
         out.write( DataTransferProtocol.OP_WRITE_BLOCK );
         out.writeLong( block.getBlockId() );
@@ -3173,13 +3207,33 @@ public class DFSClient implements FSConstants, java.io.Closeable {
           nodes[i].write(out);
         }
         checksum.writeHeader( out );
+
+        //ww2
+        if (XTraceContext.getThreadContext() != null) {
+          byte[] md = XTraceContext.getThreadContext().pack();
+          out.writeInt(md.length);
+          out.write(md);
+        }
+
         out.flush();
 
         // receive ack for connect
+
+        //ww2
+        int length = blockReplyStream.readInt();
+        byte[] md = new byte[length];
+        blockReplyStream.read(md, 0, md.length);
+        XTraceMetadata metadata = XTraceMetadata.createFromBytes(md, 0, md.length);
+        XTraceContext.setThreadContext(metadata);
+
         firstBadLink = Text.readString(blockReplyStream);
         if (firstBadLink.length() != 0) {
+          XTraceContext.opWriteBlockFailure("DFSClient");
+          XTraceContext.endTrace();
           throw new IOException("Bad connect ack with firstBadLink " + firstBadLink);
         }
+        
+        XTraceContext.opWriteBlockSuccess("DFSClient");
 
         blockStream = out;
         result = true;     // success

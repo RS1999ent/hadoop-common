@@ -21,6 +21,8 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 
+import edu.berkeley.xtrace.*;
+
 /**
  * 
  * The Client transfers data to/from datanode using a streaming protocol.
@@ -62,6 +64,8 @@ public interface DataTransferProtocol {
     private long seqno;
     private short replies[];
     final public static long UNKOWN_SEQNO = -2; 
+    //ww2
+    public XTraceMetadata metadata = null;
 
     /** default constructor **/
     public PipelineAck() {
@@ -124,12 +128,30 @@ public interface DataTransferProtocol {
       for (int i=0; i < replies.length; i++) {
     	  replies[i] = in.readShort();
       }
+      
+      //ww2
+      int len = in.readInt();
+      if (len > 0) {
+        byte[] md = new byte[len];
+        in.readFully(md);
+        metadata = XTraceMetadata.createFromBytes(md, 0, len);
+      } else
+        metadata = null;
     }
 
     public void write(DataOutput out) throws IOException {
       out.writeLong(seqno);
       for(short reply : replies) {
         out.writeShort(reply);
+      }
+      
+      //ww2
+      if (metadata == null)
+        out.writeInt(0);
+      else {
+        byte[] md = metadata.pack();
+        out.writeInt(md.length);
+        out.write(md);
       }
     }
 
