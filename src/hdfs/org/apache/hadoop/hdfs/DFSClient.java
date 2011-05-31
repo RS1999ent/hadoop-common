@@ -1373,7 +1373,13 @@ public class DFSClient implements FSConstants, java.io.Closeable {
                                          throws IOException {
       // Read one chunk.
       
+      //ww2
+      XTraceContext.newTrace();
+      XTraceContext.callStart("DFSClient", "readChunk");
+
       if ( gotEOS ) {
+        XTraceContext.callEnd("DFSClient", "readChunk");
+        XTraceContext.endTrace();
         if ( startOffset < 0 ) {
           //This is mainly for debugging. can be removed.
           throw new IOException( "BlockRead: already got EOS or an error" );
@@ -1414,6 +1420,8 @@ public class DFSClient implements FSConstants, java.io.Closeable {
         if ( dataLen < 0 || 
              ( (dataLen % bytesPerChecksum) != 0 && !lastPacketInBlock ) ||
              (seqno != (lastSeqNo + 1)) ) {
+             XTraceContext.callError("DFSClient", "readChunk");
+             XTraceContext.endTrace();
              throw new IOException("BlockReader: error in packet header" +
                                    "(chunkOffset : " + chunkOffset + 
                                    ", dataLen : " + dataLen +
@@ -1447,8 +1455,13 @@ public class DFSClient implements FSConstants, java.io.Closeable {
         gotEOS = true;
       }
       if ( chunkLen == 0 ) {
+        XTraceContext.callEnd("DFSClient", "readChunk");
+        XTraceContext.endTrace();
         return -1;
       }
+      
+      XTraceContext.callError("DFSClient", "readChunk");
+      XTraceContext.endTrace();
       
       return chunkLen;
     }
@@ -1503,6 +1516,9 @@ public class DFSClient implements FSConstants, java.io.Closeable {
       DataOutputStream out = new DataOutputStream(
         new BufferedOutputStream(NetUtils.getOutputStream(sock,HdfsConstants.WRITE_TIMEOUT)));
 
+      //ww2
+      XTraceContext.opReadBlockRequest("DFSClient");
+
       //write the header.
       out.writeShort( DataTransferProtocol.DATA_TRANSFER_VERSION );
       out.write( DataTransferProtocol.OP_READ_BLOCK );
@@ -1511,6 +1527,14 @@ public class DFSClient implements FSConstants, java.io.Closeable {
       out.writeLong( startOffset );
       out.writeLong( len );
       Text.writeString(out, clientName);
+
+      //ww2
+      if (XTraceContext.getThreadContext() != null) {
+        byte[] md = XTraceContext.getThreadContext().pack();
+        out.writeInt(md.length);
+        out.write(md);
+      }
+
       out.flush();
       
       //
@@ -1520,12 +1544,21 @@ public class DFSClient implements FSConstants, java.io.Closeable {
       DataInputStream in = new DataInputStream(
           new BufferedInputStream(NetUtils.getInputStream(sock), 
                                   bufferSize));
-      
-      if ( in.readShort() != DataTransferProtocol.OP_STATUS_SUCCESS ) {
+      short status = in.readShort();
+      if (in.available() > 0) {
+        int length = in.readInt();
+        byte[] md = new byte[length];
+        in.read(md, 0, md.length);
+        XTraceMetadata metadata = XTraceMetadata.createFromBytes(md, 0, md.length);
+        XTraceContext.setThreadContext(metadata);
+      }
+      if ( status != DataTransferProtocol.OP_STATUS_SUCCESS ) {
+        XTraceContext.opReadBlockFailure("DFSClient");
         throw new IOException("Got error in response to OP_READ_BLOCK " +
                               "for file " + file + 
                               " for block " + blockId);
       }
+      XTraceContext.opReadBlockSuccess("DFSClient");
       DataChecksum checksum = DataChecksum.newDataChecksum( in );
       //Warning when we get CHECKSUM_NULL?
       
