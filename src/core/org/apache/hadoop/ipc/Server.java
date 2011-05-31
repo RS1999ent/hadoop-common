@@ -68,6 +68,8 @@ import org.apache.hadoop.util.StringUtils;
 import org.apache.hadoop.ipc.metrics.RpcMetrics;
 import org.apache.hadoop.security.authorize.AuthorizationException;
 
+import edu.berkeley.xtrace.*;
+
 /** An abstract IPC service.  IPC calls take a single {@link Writable} as a
  * parameter, and return a {@link Writable} as their value.  A service runs on
  * a port and is defined by a parameter class and a value class.

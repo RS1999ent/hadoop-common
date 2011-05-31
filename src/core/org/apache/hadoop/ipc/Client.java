@@ -137,11 +137,17 @@ public class Client {
     IOException error;                            // exception, null if value
     boolean done;                                 // true when call is done
 
+    //ww2
+    XTraceMetadata metadata;
+
     protected Call(Writable param) {
       this.param = param;
       synchronized (Client.this) {
         this.id = counter++;
       }
+
+      //ww2
+      this.metadata = null;
     }
 
     /** Indicate when the call is complete and the
