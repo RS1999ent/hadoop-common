@@ -1533,6 +1533,8 @@ public class DFSClient implements FSConstants, java.io.Closeable {
         byte[] md = XTraceContext.getThreadContext().pack();
         out.writeInt(md.length);
         out.write(md);
+      } else {
+        out.writeInt(-1);
       }
 
       out.flush();
@@ -3206,25 +3208,29 @@ public class DFSClient implements FSConstants, java.io.Closeable {
         for (int i = 1; i < nodes.length; i++) {
           nodes[i].write(out);
         }
-        checksum.writeHeader( out );
 
         //ww2
         if (XTraceContext.getThreadContext() != null) {
           byte[] md = XTraceContext.getThreadContext().pack();
           out.writeInt(md.length);
           out.write(md);
+        } else {
+          out.writeInt(-1);
         }
 
+        checksum.writeHeader( out );
         out.flush();
 
         // receive ack for connect
 
         //ww2
         int length = blockReplyStream.readInt();
-        byte[] md = new byte[length];
-        blockReplyStream.read(md, 0, md.length);
-        XTraceMetadata metadata = XTraceMetadata.createFromBytes(md, 0, md.length);
-        XTraceContext.setThreadContext(metadata);
+        if (length > 0) {
+          byte[] md = new byte[length];
+          blockReplyStream.read(md, 0, md.length);
+          XTraceMetadata metadata = XTraceMetadata.createFromBytes(md, 0, md.length);
+          XTraceContext.setThreadContext(metadata);
+        }
 
         firstBadLink = Text.readString(blockReplyStream);
         if (firstBadLink.length() != 0) {

@@ -43,6 +43,8 @@ import org.apache.hadoop.util.DataChecksum;
 import org.apache.hadoop.util.StringUtils;
 import static org.apache.hadoop.hdfs.server.datanode.DataNode.DN_CLIENTTRACE_FORMAT;
 
+import edu.berkeley.xtrace.*;
+
 /** A class that receives a block and writes to its own disk, meanwhile
  * may copies it to another site. If a throttler is provided,
  * streaming throttling is also supported.
@@ -76,6 +78,10 @@ class BlockReceiver implements java.io.Closeable, FSConstants {
   private Checksum partialCrc = null;
   private DataNode datanode = null;
   volatile private boolean mirrorError;
+
+  //ww2 
+  private XTraceMetadata previousAccept = null;
+  private XTraceMetadata previousSend = null;
 
   BlockReceiver(Block block, DataInputStream in, String inAddr,
                 String myAddr, boolean isRecovery, String clientName, 
@@ -386,9 +392,19 @@ class BlockReceiver implements java.io.Closeable, FSConstants {
     long seqno = buf.getLong();    // get seqno
     boolean lastPacketInBlock = (buf.get() != 0);
     
+    byte[] md = new byte[17];
+    buf.get(md);
+    XTraceMetadata metadata = XTraceMetadata.createFromBytes(md, 0, md.length);
+    if (metadata.isValid())
+      XTraceContext.setThreadContext(metadata);
+    else
+      XTraceContext.setThreadContext(null);
+    
     int endOfHeader = buf.position();
     buf.reset();
     
+    XTraceContext.receivePacket("Datanode", seqno);
+
     if (LOG.isDebugEnabled()){
       LOG.debug("Receiving one packet for block " + block +
                 " of length " + payloadLen +
@@ -402,6 +418,16 @@ class BlockReceiver implements java.io.Closeable, FSConstants {
     // First write the packet to the mirror:
     if (mirrorOut != null && !mirrorError) {
       try {
+
+        previousSend = XTraceContext.sendPacket("Datanode", seqno, previousSend);
+        buf.mark();
+        buf.position(endOfHeader - 17);
+        if (XTraceContext.isValid())
+          buf.put(XTraceContext.getThreadContext().pack());
+        else
+          buf.put(new byte[17]);
+        buf.reset();
+
         mirrorOut.write(buf.array(), buf.position(), buf.remaining());
         mirrorOut.flush();
       } catch (IOException e) {
@@ -711,6 +737,9 @@ class BlockReceiver implements java.io.Closeable, FSConstants {
     private int numTargets;     // number of downstream datanodes including myself
     private BlockReceiver receiver; // The owner of this responder.
     private Thread receiverThread; // the thread that spawns this responder
+    
+    private XTraceMetadata previousAccept = null;
+    private XTraceMetadata previousAck = null;
 
     public String toString() {
       return "PacketResponder " + numTargets + " for Block " + this.block;
@@ -736,7 +765,7 @@ class BlockReceiver implements java.io.Closeable, FSConstants {
       if (running) {
         LOG.debug("PacketResponder " + numTargets + " adding seqno " + seqno +
                   " to ack queue.");
-        ackQueue.addLast(new Packet(seqno, lastPacketInBlock));
+        ackQueue.addLast(new Packet(seqno, lastPacketInBlock, XTraceContext.getThreadContext()));
         notifyAll();
       }
     }
@@ -804,11 +833,13 @@ class BlockReceiver implements java.io.Closeable, FSConstants {
               if (numTargets > 0 && !localMirrorError) {
                 // read an ack from downstream datanode
                 ack.readFields(mirrorIn, numTargets);
+                XTraceContext.setThreadContext(ack.metadata);
                 if (LOG.isDebugEnabled()) {
                   LOG.debug("PacketResponder " + numTargets + 
                       " for block " + block + " got " + ack);
                 }
                 seqno = ack.getSeqno();
+                XTraceContext.receiveAck("Datanode", seqno);
                 // verify seqno
                 if (seqno != expected) {
                   throw new IOException("PacketResponder " + numTargets +
@@ -817,6 +848,10 @@ class BlockReceiver implements java.io.Closeable, FSConstants {
                       " received:" + seqno);
                 }
               }
+              if (numTargets > 0) {
+                  previousAccept = XTraceContext.acceptAck("Datanode", seqno, previousAccept);
+              } else
+                  XTraceContext.setThreadContext(pkt.metadata);
               lastPacketInBlock = pkt.lastPacketInBlock;
             } catch (InterruptedException ine) {
               isInterrupted = true;
@@ -883,6 +918,8 @@ class BlockReceiver implements java.io.Closeable, FSConstants {
             	}
             }
             PipelineAck replyAck = new PipelineAck(expected, replies);
+            previousAck = XTraceContext.sendAck("Datanode", expected, previousAck);
+            replyAck.metadata = XTraceContext.getThreadContext();
  
             // send my ack back to upstream datanode
             replyAck.write(replyOut);
@@ -906,6 +943,7 @@ class BlockReceiver implements java.io.Closeable, FSConstants {
       }
       LOG.info("PacketResponder " + numTargets + 
                " for block " + block + " terminating");
+      XTraceContext.setThreadContext(null);
     }
   }
   
@@ -915,10 +953,17 @@ class BlockReceiver implements java.io.Closeable, FSConstants {
   static private class Packet {
     long seqno;
     boolean lastPacketInBlock;
+    XTraceMetadata metadata = null;
 
     Packet(long seqno, boolean lastPacketInBlock) {
       this.seqno = seqno;
       this.lastPacketInBlock = lastPacketInBlock;
+    }
+    
+    Packet(long seqno, boolean lastPacketInBlock, XTraceMetadata metadata) {
+      this.seqno = seqno;
+      this.lastPacketInBlock = lastPacketInBlock;
+      this.metadata = metadata;
     }
   }
 }
