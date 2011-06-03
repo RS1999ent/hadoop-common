@@ -1529,13 +1529,12 @@ public class DFSClient implements FSConstants, java.io.Closeable {
       Text.writeString(out, clientName);
 
       //ww2
-      if (XTraceContext.getThreadContext() != null) {
+      /*if (XTraceContext.getThreadContext() != null) {
         byte[] md = XTraceContext.getThreadContext().pack();
-        out.writeInt(md.length);
         out.write(md);
       } else {
-        out.writeInt(-1);
-      }
+        out.write(new byte[17]);
+      }*/
 
       out.flush();
       
@@ -1547,13 +1546,15 @@ public class DFSClient implements FSConstants, java.io.Closeable {
           new BufferedInputStream(NetUtils.getInputStream(sock), 
                                   bufferSize));
       short status = in.readShort();
-      if (in.available() > 0) {
-        int length = in.readInt();
-        byte[] md = new byte[length];
-        in.read(md, 0, md.length);
-        XTraceMetadata metadata = XTraceMetadata.createFromBytes(md, 0, md.length);
+
+      /*byte[] md = new byte[17];
+      in.readFully(md, 0, md.length);
+      XTraceMetadata metadata = XTraceMetadata.createFromBytes(md, 0, md.length);
+      if (metadata.isValid())
         XTraceContext.setThreadContext(metadata);
-      }
+      else
+        XTraceContext.setThreadContext(null);*/
+
       if ( status != DataTransferProtocol.OP_STATUS_SUCCESS ) {
         XTraceContext.opReadBlockFailure("DFSClient");
         throw new IOException("Got error in response to OP_READ_BLOCK " +
@@ -3210,29 +3211,37 @@ public class DFSClient implements FSConstants, java.io.Closeable {
         }
 
         //ww2
-        if (XTraceContext.getThreadContext() != null) {
+        /*if (XTraceContext.getThreadContext() != null) {
           byte[] md = XTraceContext.getThreadContext().pack();
-          out.writeInt(md.length);
           out.write(md);
         } else {
-          out.writeInt(-1);
-        }
+          out.write(new byte[17]);
+        }*/
 
         checksum.writeHeader( out );
         out.flush();
 
         // receive ack for connect
+        firstBadLink = Text.readString(blockReplyStream);
 
         //ww2
-        int length = blockReplyStream.readInt();
-        if (length > 0) {
-          byte[] md = new byte[length];
-          blockReplyStream.read(md, 0, md.length);
-          XTraceMetadata metadata = XTraceMetadata.createFromBytes(md, 0, md.length);
+        /*byte[] bint = new byte[4];
+        int count = 0;
+        count += blockReplyStream.read(bint);
+        while (count < 4)
+          count += blockReplyStream.read(bint, count, bint.length - count);
+        int length = (bint[0] << 24) | ((bint[1] & 0xff) << 16) | ((bint[2] & 0xff) << 8) | (bint[3] & 0xff);
+        System.out.println(length);*/
+        //int length = blockReplyStream.readInt();
+        //if (length > 0) {
+        /*byte[] md = new byte[17];
+        blockReplyStream.readFully(md, 0, md.length);
+        XTraceMetadata metadata = XTraceMetadata.createFromBytes(md, 0, md.length);
+        if (metadata.isValid())
           XTraceContext.setThreadContext(metadata);
-        }
+        else
+          XTraceContext.setThreadContext(null);*/
 
-        firstBadLink = Text.readString(blockReplyStream);
         if (firstBadLink.length() != 0) {
           XTraceContext.opWriteBlockFailure("DFSClient");
           XTraceContext.endTrace();
