@@ -916,11 +916,11 @@ public abstract class Server {
     private void processData() throws  IOException, InterruptedException {
       DataInputStream dis =
         new DataInputStream(new ByteArrayInputStream(data.array()));
-      int id = dis.readInt();                    // try to read an id
-        
       //ww2
       XTraceMetadata metadata = receiveMetadata(dis); 
 
+      int id = dis.readInt();                    // try to read an id
+        
       if (LOG.isDebugEnabled())
         LOG.debug(" got #" + id);
 
