@@ -1460,7 +1460,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
         return -1;
       }
       
-      XTraceContext.callError("DFSClient", "readChunk");
+      XTraceContext.callEnd("DFSClient", "readChunk");
       XTraceContext.endTrace();
       
       return chunkLen;
