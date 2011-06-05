@@ -150,6 +150,7 @@ public interface DataTransferProtocol {
         out.writeInt(0);
       else {
         byte[] md = metadata.pack();
+        assert(md.length == 17);
         out.writeInt(md.length);
         out.write(md);
       }

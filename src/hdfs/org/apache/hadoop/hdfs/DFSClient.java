@@ -2483,10 +2483,13 @@ public class DFSClient implements FSConstants, java.io.Closeable {
         buffer.put((byte) ((lastPacketInBlock) ? 1 : 0));
 
         //ww2
-        if (XTraceContext.getThreadContext() != null)
-          buffer.put(XTraceContext.getThreadContext().pack());
-        else
+        byte[] md;
+        if (XTraceContext.isValid() && (md = XTraceContext.getThreadContext().pack()).length == 17)
+          buffer.put(md);
+        else {
           buffer.put(new byte[17]);
+          XTraceContext.setThreadContext(null);
+        }
 
         //end of pkt header
         buffer.putInt(dataLen); // actual data length, excluding checksum.

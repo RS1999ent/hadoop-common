@@ -422,10 +422,12 @@ class BlockReceiver implements java.io.Closeable, FSConstants {
         previousSend = XTraceContext.sendPacket("Datanode", seqno, previousSend);
         buf.mark();
         buf.position(endOfHeader - 17);
-        if (XTraceContext.isValid())
-          buf.put(XTraceContext.getThreadContext().pack());
-        else
+        if (XTraceContext.isValid() && (md = XTraceContext.getThreadContext().pack()).length == 17)
+          buf.put(md);
+        else {
           buf.put(new byte[17]);
+          XTraceContext.setThreadContext(null);
+        }
         buf.reset();
 
         mirrorOut.write(buf.array(), buf.position(), buf.remaining());
