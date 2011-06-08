@@ -134,7 +134,7 @@ public interface DataTransferProtocol {
       if (len > 0) {
         byte[] md = new byte[len];
         in.readFully(md);
-        metadata = XTraceMetadata.createFromBytes(md, 0, len);
+        metadata = XTraceMetadata.createFromBytes(md, 0, len).newOpId();
       } else
         metadata = null;
     }

@@ -516,7 +516,7 @@ public class Client {
       if (length > 0) {
         byte[] md = new byte[length];
         in.readFully(md);
-        metadata = XTraceMetadata.createFromBytes(md, 0, length);
+        metadata = XTraceMetadata.createFromBytes(md, 0, length).newOpId();
       }
       return metadata;
     }

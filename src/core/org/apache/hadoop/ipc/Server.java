@@ -909,7 +909,7 @@ public abstract class Server {
       if (length > 0) {
         byte[] md = new byte[length];
         dis.readFully(md);
-        metadata = XTraceMetadata.createFromBytes(md, 0, length);
+        metadata = XTraceMetadata.createFromBytes(md, 0, length).newOpId();
       }
       return metadata;
     }

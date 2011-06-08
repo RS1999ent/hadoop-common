@@ -396,7 +396,7 @@ class BlockReceiver implements java.io.Closeable, FSConstants {
     buf.get(md);
     XTraceMetadata metadata = XTraceMetadata.createFromBytes(md, 0, md.length);
     if (metadata.isValid())
-      XTraceContext.setThreadContext(metadata);
+      XTraceContext.setThreadContext(metadata.newOpId());
     else
       XTraceContext.setThreadContext(null);
     
