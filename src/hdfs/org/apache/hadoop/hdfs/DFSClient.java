@@ -1413,6 +1413,8 @@ public class DFSClient implements FSConstants, java.io.Closeable {
                     " lastPacketInBlock " + lastPacketInBlock +
                     " packetLen " + packetLen);
         }
+        byte[] md = new byte[17];
+        in.readFully(md);
         
         int dataLen = in.readInt();
       
@@ -2520,6 +2522,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
     private class DataStreamer extends Daemon {
 
       private volatile boolean closed = false;
+      XTraceMetadata previousSend = null;
   
       public void run() {
         long lastPacket = 0;
@@ -2582,6 +2585,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
                 this.setName("DataStreamer for file " + src +
                              " block " + block);
                 response = new ResponseProcessor(nodes);
+                previousSend = null;
                 response.start();
               }
 
@@ -2606,7 +2610,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
               }
               
               // write out data to remote datanode
-              XTraceContext.sendPacket("DFSClient", one.seqno, null);
+              previousSend = XTraceContext.sendPacket("DFSClient", one.seqno, previousSend);
               blockStream.write(buf.array(), buf.position(), buf.remaining());
               
               if (one.lastPacketInBlock) {

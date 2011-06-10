@@ -260,6 +260,7 @@ class BlockSender implements java.io.Closeable, FSConstants {
     pkt.putLong(seqno);
     pkt.put((byte)((offset + len >= endOffset) ? 1 : 0));
                //why no ByteBuf.putBoolean()?
+    pkt.put(new byte[17]);
     pkt.putInt(len);
     
     int checksumOff = pkt.position();
