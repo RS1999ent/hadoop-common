@@ -131,7 +131,7 @@ public interface DataTransferProtocol {
       
       //ww2
       int len = in.readInt();
-      if (len > 0) {
+      if (len == 17) {
         byte[] md = new byte[len];
         in.readFully(md);
         metadata = XTraceMetadata.createFromBytes(md, 0, len).newOpId();
@@ -150,7 +150,6 @@ public interface DataTransferProtocol {
         out.writeInt(0);
       else {
         byte[] md = metadata.pack();
-        assert(md.length == 17);
         out.writeInt(md.length);
         out.write(md);
       }

@@ -511,9 +511,8 @@ public class Client {
     //ww2
     private XTraceMetadata receiveMetadata() throws IOException {
       int length = in.readInt();
-      assert(length <= 0 || length == 17);
       XTraceMetadata metadata = null;
-      if (length > 0) {
+      if (length == 17) {
         byte[] md = new byte[length];
         in.readFully(md);
         metadata = XTraceMetadata.createFromBytes(md, 0, length).newOpId();

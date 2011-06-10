@@ -1374,12 +1374,12 @@ public class DFSClient implements FSConstants, java.io.Closeable {
       // Read one chunk.
       
       //ww2
-      XTraceContext.newTrace();
-      XTraceContext.callStart("DFSClient", "readChunk");
+      //XTraceContext.newTrace();
+      //XTraceContext.callStart("DFSClient", "readChunk");
 
       if ( gotEOS ) {
-        XTraceContext.callEnd("DFSClient", "readChunk");
-        XTraceContext.endTrace();
+        //XTraceContext.callEnd("DFSClient", "readChunk");
+        //XTraceContext.endTrace();
         if ( startOffset < 0 ) {
           //This is mainly for debugging. can be removed.
           throw new IOException( "BlockRead: already got EOS or an error" );
@@ -1455,13 +1455,13 @@ public class DFSClient implements FSConstants, java.io.Closeable {
         gotEOS = true;
       }
       if ( chunkLen == 0 ) {
-        XTraceContext.callEnd("DFSClient", "readChunk");
-        XTraceContext.endTrace();
+        //XTraceContext.callEnd("DFSClient", "readChunk");
+        //XTraceContext.endTrace();
         return -1;
       }
       
-      XTraceContext.callEnd("DFSClient", "readChunk");
-      XTraceContext.endTrace();
+      //XTraceContext.callEnd("DFSClient", "readChunk");
+      //XTraceContext.endTrace();
       
       return chunkLen;
     }
@@ -1892,6 +1892,8 @@ public class DFSClient implements FSConstants, java.io.Closeable {
           s = null;
         }
       }
+      XTraceContext.callEnd("DFSClient", "blockSeekTo");
+      XTraceContext.endTrace();
       return chosenNode;
     }
 

@@ -904,9 +904,8 @@ public abstract class Server {
     //ww2
     private XTraceMetadata receiveMetadata(DataInputStream dis) throws IOException {
       int length = dis.readInt();
-      assert(length <= 0 || length == 17);
       XTraceMetadata metadata = null;
-      if (length > 0) {
+      if (length == 17) {
         byte[] md = new byte[length];
         dis.readFully(md);
         metadata = XTraceMetadata.createFromBytes(md, 0, length).newOpId();
