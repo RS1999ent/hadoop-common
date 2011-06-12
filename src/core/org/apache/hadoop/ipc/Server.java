@@ -218,6 +218,7 @@ public abstract class Server {
 
     //ww2
     private XTraceMetadata metadata;
+    private String taskId;
 
     public Call(int id, Writable param, Connection connection) { 
       this.id = id;
@@ -905,7 +906,7 @@ public abstract class Server {
     private XTraceMetadata receiveMetadata(DataInputStream dis) throws IOException {
       int length = dis.readInt();
       XTraceMetadata metadata = null;
-      if (length == 17) {
+      if (length > 0) {
         byte[] md = new byte[length];
         dis.readFully(md);
         metadata = XTraceMetadata.createFromBytes(md, 0, length).newOpId();
@@ -913,11 +914,22 @@ public abstract class Server {
       return metadata;
     }
 
+    private String getTaskId(DataInputStream dis) throws IOException {
+      int length = dis.readInt();
+      if (length <= 0)
+        return null;
+      byte[] bytes = new byte[length];
+      dis.readFully(bytes);
+      return new String(bytes);
+    }
+
     private void processData() throws  IOException, InterruptedException {
       DataInputStream dis =
         new DataInputStream(new ByteArrayInputStream(data.array()));
       //ww2
-      XTraceMetadata metadata = receiveMetadata(dis); 
+      XTraceMetadata metadata = receiveMetadata(dis);
+      String taskId = getTaskId(dis);
+      System.out.println(taskId);
 
       int id = dis.readInt();                    // try to read an id
         
@@ -930,6 +942,7 @@ public abstract class Server {
       Call call = new Call(id, param, this);
       
       call.metadata = metadata;
+      call.taskId = taskId;
       
       callQueue.put(call);              // queue the call; maybe blocked here
     }
@@ -975,6 +988,7 @@ public abstract class Server {
           
           //ww2
           XTraceMetadata oldContext = XTraceContext.switchThreadContext(call.metadata);
+          String oldTaskId = XTraceContext.switchtId(call.taskId); 
 
           try {
             // Make the call as the user via Subject.doAs, thus associating
@@ -1004,6 +1018,7 @@ public abstract class Server {
           }
 
           call.metadata = XTraceContext.getThreadContext();
+          XTraceContext.settId(oldTaskId);
           XTraceContext.setThreadContext(oldContext);
 
           CurCall.set(null);

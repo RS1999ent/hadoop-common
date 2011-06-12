@@ -31,6 +31,7 @@ import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.FilterInputStream;
 import java.io.InputStream;
+import java.io.ByteArrayInputStream;
 
 import java.util.Hashtable;
 import java.util.Iterator;
@@ -486,13 +487,22 @@ public class Client {
 
           // ww2
           if (call.metadata == null) {
-            out.writeInt(dataLength + Integer.SIZE / 8);
+            out.writeInt(dataLength + (Integer.SIZE / 8 * 2));
             out.writeInt(-1);
+            out.writeInt(0);
           } else {
             byte[] md = call.metadata.pack();
-            out.writeInt(dataLength + Integer.SIZE / 8 + md.length);
+            String taskId = XTraceContext.gettId();
+            if (taskId == null) {
+              taskId = "UNKNOWN";
+              XTraceContext.settId(taskId);
+            }
+            byte[] bytes = taskId.getBytes();
+            out.writeInt(dataLength + (Integer.SIZE / 8 * 2) + md.length + bytes.length);
             out.writeInt(md.length);
-            out.write(md, 0, md.length);
+            out.write(md);
+            out.writeInt(bytes.length);
+            out.write(bytes);
           }
 
           //out.writeInt(dataLength);      //first put the data length
@@ -512,7 +522,7 @@ public class Client {
     private XTraceMetadata receiveMetadata() throws IOException {
       int length = in.readInt();
       XTraceMetadata metadata = null;
-      if (length == 17) {
+      if (length > 0) {
         byte[] md = new byte[length];
         in.readFully(md);
         metadata = XTraceMetadata.createFromBytes(md, 0, length).newOpId();

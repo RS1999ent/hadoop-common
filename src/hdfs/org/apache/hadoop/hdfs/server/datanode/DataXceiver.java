@@ -19,6 +19,7 @@ package org.apache.hadoop.hdfs.server.datanode;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
+import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -71,37 +72,24 @@ class DataXceiver implements Runnable, FSConstants {
 
   //ww2
   private void writeXTraceMetadata(DataOutputStream out) throws IOException {
-    //System.out.println("Writing metadata, if any");
     if (XTraceContext.getThreadContext() != null) {
-      if (!XTraceContext.getThreadContext().isValid())
-        System.out.println("Invalid metadata");
       byte[] md = XTraceContext.getThreadContext().pack();
-      assert(md.length == 17);
+      out.writeInt(md.length);
       out.write(md);
     } else
-      out.write(new byte[17]);
+      out.writeInt(-1);
   }
 
   private void readXTraceMetadata(DataInputStream in) throws IOException {
-    /*System.out.println("Reading metadata, if any");
-    byte[] bint = new byte[SIZE_OF_INTEGER];
-    int count = 0;
-    count += in.read(bint);
-    while (count < bint.length)
-      count += in.read(bint, count, bint.length - count);
-    int length = (bint[0] << 24) | ((bint[1] & 0xff) << 16) | ((bint[2] & 0xff) << 8) | (bint[3] & 0xff);
-    if (length > 0) {*/
-    byte[] md = new byte[17];
-    in.readFully(md, 0, md.length);
-    /*while (count < md.length)
-      count += in.read(md, count, md.length - count);*/
-    XTraceMetadata metadata = XTraceMetadata.createFromBytes(md, 0, md.length);
-    //XTraceContext.setThreadContext(XTraceMetadata.createFromBytes(md, 0, length));
-      /*if (!XTraceContext.getThreadContext().isValid())
-        System.out.println("Invalid metadata");*/
-    if (metadata.isValid())
+    byte[] bint = new byte[4];
+    in.readFully(bint);
+    int length = (new DataInputStream(new ByteArrayInputStream(bint))).readInt();//in.readInt();
+    if (length > 0) {
+      byte[] md = new byte[length];
+      in.readFully(md);
+      XTraceMetadata metadata = XTraceMetadata.createFromBytes(md, 0, md.length);
       XTraceContext.setThreadContext(metadata);
-    else
+    } else
       XTraceContext.setThreadContext(null);
   }
 
@@ -192,8 +180,8 @@ class DataXceiver implements Runnable, FSConstants {
     long length = in.readLong();
     String clientName = Text.readString(in);
 
-    //readXTraceMetadata(in);
-    //XTraceContext.opReadBlockReceive("Datanode");
+    readXTraceMetadata(in);
+    XTraceContext.opReadBlockReceive("Datanode");
     
     // send the block
     OutputStream baseStream = NetUtils.getOutputStream(s, 
@@ -211,19 +199,19 @@ class DataXceiver implements Runnable, FSConstants {
             s.getInetAddress();
     try {
       try {
-        //XTraceContext.callStart("Datanode", "newBlockSender");
+        XTraceContext.callStart("Datanode", "newBlockSender");
         blockSender = new BlockSender(block, startOffset, length,
             true, true, false, datanode, clientTraceFmt);
       } catch(IOException e) {
-        //XTraceContext.callEnd("Datanode", "newBlockSender");
+        XTraceContext.callEnd("Datanode", "newBlockSender");
         out.writeShort(DataTransferProtocol.OP_STATUS_ERROR);
 
-        //writeXTraceMetadata(out);
+        writeXTraceMetadata(out);
         throw e;
       }
 
       out.writeShort(DataTransferProtocol.OP_STATUS_SUCCESS); // send op status
-      //writeXTraceMetadata(out); 
+      writeXTraceMetadata(out); 
 
       long read = blockSender.sendBlock(out, baseStream, null); // send data
 
@@ -295,8 +283,8 @@ class DataXceiver implements Runnable, FSConstants {
       targets[i] = tmp;
     }
 
-    //readXTraceMetadata(in);
-    //XTraceContext.opWriteBlockReceive("Datanode");
+    readXTraceMetadata(in);
+    XTraceContext.opWriteBlockReceive("Datanode");
 
     DataOutputStream mirrorOut = null;  // stream to next target
     DataInputStream mirrorIn = null;    // reply from next target
@@ -307,12 +295,12 @@ class DataXceiver implements Runnable, FSConstants {
     String firstBadLink = "";           // first datanode that failed in connection setup
     try {
       // open a block receiver and check if the block does not exist
-      //XTraceContext.callStart("Datanode", "newBlockReceiver");
+      XTraceContext.callStart("Datanode", "newBlockReceiver");
       blockReceiver = new BlockReceiver(block, in, 
           s.getRemoteSocketAddress().toString(),
           s.getLocalSocketAddress().toString(),
           isRecovery, client, srcDataNode, datanode);
-      //XTraceContext.callEnd("Datanode", "newBlockReceiver");
+      XTraceContext.callEnd("Datanode", "newBlockReceiver");
 
       // get a connection back to the previous target
       replyOut = new DataOutputStream(
@@ -342,7 +330,7 @@ class DataXceiver implements Runnable, FSConstants {
                          SMALL_BUFFER_SIZE));
           mirrorIn = new DataInputStream(NetUtils.getInputStream(mirrorSock));
           
-          //XTraceContext.opWriteBlockRequest("Datanode");
+          XTraceContext.opWriteBlockRequest("Datanode");
 
           // Write header: Copied from DFSClient.java!
           mirrorOut.writeShort( DataTransferProtocol.DATA_TRANSFER_VERSION );
@@ -361,7 +349,7 @@ class DataXceiver implements Runnable, FSConstants {
             targets[i].write( mirrorOut );
           }
 
-          //writeXTraceMetadata(mirrorOut);
+          writeXTraceMetadata(mirrorOut);
 
           blockReceiver.writeChecksumHeader(mirrorOut);
           mirrorOut.flush();
@@ -369,10 +357,10 @@ class DataXceiver implements Runnable, FSConstants {
           // read connect ack (only for clients, not for replication req)
           if (client.length() != 0) {
 
-            //readXTraceMetadata(mirrorIn);
 
             firstBadLink = Text.readString(mirrorIn);
-            //XTraceContext.opWriteBlockSuccess("Datanode");
+            readXTraceMetadata(mirrorIn);
+            XTraceContext.opWriteBlockSuccess("Datanode");
 
             if (LOG.isDebugEnabled() || firstBadLink.length() > 0) {
               LOG.info("Datanode " + targets.length +
@@ -384,9 +372,9 @@ class DataXceiver implements Runnable, FSConstants {
 
         } catch (IOException e) {
           if (client.length() != 0) {
-            //XTraceContext.opWriteBlockReply("Datanode");
+            XTraceContext.opWriteBlockReply("Datanode");
             Text.writeString(replyOut, mirrorNode);
-            //writeXTraceMetadata(replyOut);
+            writeXTraceMetadata(replyOut);
             replyOut.flush();
           }
           IOUtils.closeStream(mirrorOut);
@@ -413,13 +401,13 @@ class DataXceiver implements Runnable, FSConstants {
                    " forwarding connect ack to upstream firstbadlink is " +
                    firstBadLink);
         }
-        //XTraceContext.opWriteBlockReply("Datanode");
+        XTraceContext.opWriteBlockReply("Datanode");
         Text.writeString(replyOut, firstBadLink);
-        //writeXTraceMetadata(replyOut);
+        writeXTraceMetadata(replyOut);
         replyOut.flush();
       }
       
-      //XTraceContext.setThreadContext(null);
+      XTraceContext.setThreadContext(null);
 
       // receive the block and mirror to the next target
       String mirrorAddr = (mirrorSock == null) ? null : mirrorNode;

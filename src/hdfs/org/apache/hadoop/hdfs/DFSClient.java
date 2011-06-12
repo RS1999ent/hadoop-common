@@ -207,8 +207,11 @@ public class DFSClient implements FSConstants, java.io.Closeable {
     String taskId = conf.get("mapred.task.id");
     if (taskId != null) {
       this.clientName = "DFSClient_" + taskId; 
+      XTraceContext.settId(taskId);
     } else {
-      this.clientName = "DFSClient_" + r.nextInt();
+      int id = r.nextInt();
+      this.clientName = "DFSClient_" + id;
+      XTraceContext.settId(String.valueOf(id));
     }
     defaultBlockSize = conf.getLong("dfs.block.size", DEFAULT_BLOCK_SIZE);
     defaultReplication = (short) conf.getInt("dfs.replication", 3);
@@ -1531,12 +1534,13 @@ public class DFSClient implements FSConstants, java.io.Closeable {
       Text.writeString(out, clientName);
 
       //ww2
-      /*if (XTraceContext.getThreadContext() != null) {
+      if (XTraceContext.getThreadContext() != null) {
         byte[] md = XTraceContext.getThreadContext().pack();
+        out.writeInt(md.length);
         out.write(md);
       } else {
-        out.write(new byte[17]);
-      }*/
+        out.writeInt(-1);
+      }
 
       out.flush();
       
@@ -1549,13 +1553,18 @@ public class DFSClient implements FSConstants, java.io.Closeable {
                                   bufferSize));
       short status = in.readShort();
 
-      /*byte[] md = new byte[17];
-      in.readFully(md, 0, md.length);
-      XTraceMetadata metadata = XTraceMetadata.createFromBytes(md, 0, md.length);
-      if (metadata.isValid())
+      //ww2
+      //int length = in.readInt();
+      byte[] bint = new byte[4];
+      in.readFully(bint);
+      int length = (new DataInputStream(new ByteArrayInputStream(bint))).readInt();
+      if (length > 0) {
+        byte[] md = new byte[length];
+        in.readFully(md);
+        XTraceMetadata metadata = XTraceMetadata.createFromBytes(md, 0, md.length);
         XTraceContext.setThreadContext(metadata);
-      else
-        XTraceContext.setThreadContext(null);*/
+      } else
+        XTraceContext.setThreadContext(null);
 
       if ( status != DataTransferProtocol.OP_STATUS_SUCCESS ) {
         XTraceContext.opReadBlockFailure("DFSClient");
@@ -3220,12 +3229,13 @@ public class DFSClient implements FSConstants, java.io.Closeable {
         }
 
         //ww2
-        /*if (XTraceContext.getThreadContext() != null) {
+        if (XTraceContext.getThreadContext() != null) {
           byte[] md = XTraceContext.getThreadContext().pack();
+          out.writeInt(md.length);
           out.write(md);
         } else {
-          out.write(new byte[17]);
-        }*/
+          out.writeInt(-1);
+        }
 
         checksum.writeHeader( out );
         out.flush();
@@ -3234,22 +3244,17 @@ public class DFSClient implements FSConstants, java.io.Closeable {
         firstBadLink = Text.readString(blockReplyStream);
 
         //ww2
-        /*byte[] bint = new byte[4];
-        int count = 0;
-        count += blockReplyStream.read(bint);
-        while (count < 4)
-          count += blockReplyStream.read(bint, count, bint.length - count);
-        int length = (bint[0] << 24) | ((bint[1] & 0xff) << 16) | ((bint[2] & 0xff) << 8) | (bint[3] & 0xff);
-        System.out.println(length);*/
         //int length = blockReplyStream.readInt();
-        //if (length > 0) {
-        /*byte[] md = new byte[17];
-        blockReplyStream.readFully(md, 0, md.length);
-        XTraceMetadata metadata = XTraceMetadata.createFromBytes(md, 0, md.length);
-        if (metadata.isValid())
+        byte[] bint = new byte[4];
+        blockReplyStream.readFully(bint);
+        int length = (new DataInputStream(new ByteArrayInputStream(bint))).readInt();
+        if (length > 0) {
+          byte[] md = new byte[length];
+          blockReplyStream.readFully(md);
+          XTraceMetadata metadata = XTraceMetadata.createFromBytes(md, 0, md.length);
           XTraceContext.setThreadContext(metadata);
-        else
-          XTraceContext.setThreadContext(null);*/
+        } else
+          XTraceContext.setThreadContext(null);
 
         if (firstBadLink.length() != 0) {
           XTraceContext.opWriteBlockFailure("DFSClient");

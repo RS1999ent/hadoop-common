@@ -1174,6 +1174,10 @@ public class DataNode extends Configured
         for (int i = 1; i < targets.length; i++) {
           targets[i].write(out);
         }
+
+        //ww2, padding to make it compatible with instrumentation changes
+        out.writeInt(-1);
+
         // send data & checksum
         blockSender.sendBlock(out, baseStream, null);
 
