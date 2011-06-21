@@ -140,6 +140,7 @@ public class Client {
 
     //ww2
     XTraceMetadata metadata;
+    String taskId;
 
     protected Call(Writable param) {
       this.param = param;
@@ -492,10 +493,10 @@ public class Client {
             out.writeInt(0);
           } else {
             byte[] md = call.metadata.pack();
-            String taskId = XTraceContext.gettId();
+            String taskId = call.taskId;
             if (taskId == null) {
               taskId = "UNKNOWN";
-              XTraceContext.settId(taskId);
+              call.taskId = "UNKNOWN";
             }
             byte[] bytes = taskId.getBytes();
             out.writeInt(dataLength + (Integer.SIZE / 8 * 2) + md.length + bytes.length);
@@ -548,7 +549,8 @@ public class Client {
 
         Call call = calls.get(id);
 
-        XTraceMetadata oldContext = XTraceContext.switchThreadContext(metadata);
+        XTraceContext.setThreadContext(metadata);
+        XTraceContext.settId(call.taskId);
         call.metadata = metadata;
 
         int state = in.readInt();     // read call status
@@ -576,6 +578,7 @@ public class Client {
           markClosed(new RemoteException(WritableUtils.readString(in), 
                                          WritableUtils.readString(in)));
         }
+
       } catch (IOException e) {
         markClosed(e);
       }
@@ -788,6 +791,7 @@ public class Client {
 
     // ww2
     call.metadata = XTraceContext.rpcStart(1)[0];
+    call.taskId = XTraceContext.gettId();
 
     Connection connection = getConnection(addr, protocol, ticket, call);
     connection.sendParam(call);                 // send the parameter

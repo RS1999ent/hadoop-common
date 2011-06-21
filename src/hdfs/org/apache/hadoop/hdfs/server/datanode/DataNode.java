@@ -93,6 +93,8 @@ import org.apache.hadoop.util.StringUtils;
 import org.apache.hadoop.util.DiskChecker.DiskErrorException;
 import org.apache.hadoop.util.DiskChecker.DiskOutOfSpaceException;
 
+import edu.berkeley.xtrace.*;
+
 /**********************************************************
  * DataNode is a class (and program) that stores a set of
  * blocks for a DFS deployment.  A single deployment can
@@ -191,6 +193,7 @@ public class DataNode extends Configured
   public Daemon blockScannerThread = null;
   
   private static final Random R = new Random();
+  public String taskId = "system" + R.nextInt();
   
   // For InterDataNodeProtocol
   public Server ipcServer;
@@ -705,6 +708,7 @@ public class DataNode extends Configured
     //
     // Now loop for a long time....
     //
+    XTraceContext.settId(taskId);
 
     while (shouldRun) {
       try {
@@ -757,7 +761,9 @@ public class DataNode extends Configured
           if(delHintArray == null || delHintArray.length != blockArray.length ) {
             LOG.warn("Panic: block array & delHintArray are not the same" );
           }
+          XTraceContext.newTrace();
           namenode.blockReceived(dnRegistration, blockArray, delHintArray);
+          XTraceContext.endTrace();
           synchronized (receivedBlockList) {
             synchronized (delHints) {
               for(int i=0; i<blockArray.length; i++) {
@@ -776,9 +782,11 @@ public class DataNode extends Configured
           // and can be safely GC'ed.
           //
           long brStartTime = now();
+          XTraceContext.newTrace();
           Block[] bReport = data.getBlockReport();
           DatanodeCommand cmd = namenode.blockReport(dnRegistration,
                   BlockListAsLongs.convertToArrayLongs(bReport));
+          XTraceContext.endTrace();
           long brTime = now() - brStartTime;
           myMetrics.blockReports.inc(brTime);
           LOG.info("BlockReport of " + bReport.length +
@@ -886,13 +894,19 @@ public class DataNode extends Configured
       //
       Block toDelete[] = bcmd.getBlocks();
       try {
+        XTraceContext.newTrace();
+        XTraceContext.callStart("Datanode", "deleteBlocks");
         if (blockScanner != null) {
           blockScanner.deleteBlocks(toDelete);
         }
         data.invalidate(toDelete);
+        XTraceContext.callEnd("Datanode", "deleteBlocks");
       } catch(IOException e) {
         checkDiskError();
+        XTraceContext.callError("Datanode", "deleteBlocks");
         throw e;
+      } finally {
+        XTraceContext.endTrace();
       }
       myMetrics.blocksRemoved.inc(toDelete.length);
       break;
@@ -1135,12 +1149,16 @@ public class DataNode extends Configured
      * Do the deed, write the bytes
      */
     public void run() {
+      XTraceContext.settId(taskId);
+
       xmitsInProgress.getAndIncrement();
       Socket sock = null;
       DataOutputStream out = null;
       BlockSender blockSender = null;
       
       try {
+        XTraceContext.newTrace();
+        XTraceContext.callStart("Datanode", "transferBlock");
         InetSocketAddress curTarget = 
           NetUtils.createSocketAddr(targets[0].getName());
         sock = newSocket();
@@ -1176,10 +1194,26 @@ public class DataNode extends Configured
         }
 
         //ww2, padding to make it compatible with instrumentation changes
-        out.writeInt(-1);
+        if (XTraceContext.isValid()) {
+          byte[] md = XTraceContext.getThreadContext().pack();
+          out.writeInt(md.length);
+          out.write(md);
+        } else {
+          out.writeInt(-1);
+        }
+        if (XTraceContext.gettId() != null) {
+          byte[] bytes = XTraceContext.gettId().getBytes();
+          out.writeInt(bytes.length);
+          out.write(bytes);
+        } else {
+          out.writeInt(-1);
+        }
 
         // send data & checksum
+        XTraceContext.callStart("Datanode", "sendBlock");
         blockSender.sendBlock(out, baseStream, null);
+        XTraceContext.callEnd("Datanode", "sendBlock");
+        XTraceContext.callEnd("Datanode", "transferBlock");
 
         // no response necessary
         LOG.info(dnRegistration + ":Transmitted block " + b + " to " + curTarget);
@@ -1189,12 +1223,14 @@ public class DataNode extends Configured
             + " got " + StringUtils.stringifyException(ie));
         // check if there are any disk problem
         datanode.checkDiskError();
+        XTraceContext.callError("Datanode", "transferBlock");
         
       } finally {
         xmitsInProgress.getAndDecrement();
         IOUtils.closeStream(blockSender);
         IOUtils.closeStream(out);
         IOUtils.closeSocket(sock);
+        XTraceContext.endTrace();
       }
     }
   }
