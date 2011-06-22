@@ -93,29 +93,6 @@ class DataXceiver implements Runnable, FSConstants {
       XTraceContext.setThreadContext(null);
   }
 
-  private void readTaskId(DataInputStream in) throws IOException {
-    byte[] bint = new byte[4];
-    in.readFully(bint);
-    int length = (new DataInputStream(new ByteArrayInputStream(bint))).readInt();
-    if (length > 0) {
-      byte[] bytes = new byte[length];
-      in.readFully(bytes);
-      XTraceContext.settId(new String(bytes));
-    } else
-      XTraceContext.settId(null);
-
-  }
-
-  private void writeTaskId(DataOutputStream out) throws IOException {
-    if (XTraceContext.gettId() == null)
-      out.writeInt(-1);
-    else {
-      byte[] bytes = XTraceContext.gettId().getBytes();
-      out.writeInt(bytes.length);
-      out.write(bytes);
-    }
-  }
-
   /**
    * Read/write data from/to the DataXceiveServer.
    */
@@ -204,7 +181,6 @@ class DataXceiver implements Runnable, FSConstants {
     String clientName = Text.readString(in);
 
     readXTraceMetadata(in);
-    readTaskId(in);
     XTraceContext.opReadBlockReceive("Datanode");
     
     // send the block
@@ -308,7 +284,6 @@ class DataXceiver implements Runnable, FSConstants {
     }
 
     readXTraceMetadata(in);
-    readTaskId(in);
     XTraceContext.opWriteBlockReceive("Datanode");
 
     DataOutputStream mirrorOut = null;  // stream to next target
@@ -375,7 +350,6 @@ class DataXceiver implements Runnable, FSConstants {
           }
 
           writeXTraceMetadata(mirrorOut);
-          writeTaskId(mirrorOut);
 
           blockReceiver.writeChecksumHeader(mirrorOut);
           mirrorOut.flush();
@@ -433,6 +407,8 @@ class DataXceiver implements Runnable, FSConstants {
         replyOut.flush();
       }
       
+      XTraceContext.setThreadContext(null);
+
       // receive the block and mirror to the next target
       String mirrorAddr = (mirrorSock == null) ? null : mirrorNode;
       blockReceiver.receiveBlock(mirrorOut, mirrorIn, replyOut,

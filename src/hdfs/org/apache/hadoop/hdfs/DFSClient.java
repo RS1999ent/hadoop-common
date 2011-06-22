@@ -88,8 +88,6 @@ public class DFSClient implements FSConstants, java.io.Closeable {
   private final FileSystem.Statistics stats;
   private int maxBlockAcquireFailures;
 
-  String taskId;
-
   /**
    * We assume we're talking to another CDH server, which supports
    * HDFS-630's addBlock method. If we get a RemoteException indicating
@@ -206,14 +204,15 @@ public class DFSClient implements FSConstants, java.io.Closeable {
       throw (IOException)(new IOException().initCause(e));
     }
 
-    taskId = conf.get("mapred.task.id");
+    String taskId = conf.get("mapred.task.id");
     if (taskId != null) {
       this.clientName = "DFSClient_" + taskId; 
+      XTraceContext.settId(taskId);
     } else {
-      taskId = String.valueOf(r.nextInt());
-      this.clientName = "DFSClient_" + taskId;
+      int id = r.nextInt();
+      this.clientName = "DFSClient_" + id;
+      XTraceContext.settId(String.valueOf(id));
     }
-    XTraceContext.settId(taskId);
     defaultBlockSize = conf.getLong("dfs.block.size", DEFAULT_BLOCK_SIZE);
     defaultReplication = (short) conf.getInt("dfs.replication", 3);
 
@@ -344,7 +343,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
    */
   public BlockLocation[] getBlockLocations(String src, long start, 
     long length) throws IOException {
-    XTraceContext.newTrace(taskId);
+    XTraceContext.newTrace();
     LocatedBlocks blocks = callGetBlockLocations(namenode, src, start, length);
     XTraceContext.endTrace();
     if (blocks == null) {
@@ -505,7 +504,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
     }
     FsPermission masked = permission.applyUMask(FsPermission.getUMask(conf));
     LOG.debug(src + ": masked=" + masked);
-    XTraceContext.newTrace(taskId);
+    XTraceContext.newTrace();
     OutputStream result = new DFSOutputStream(src, masked,
         overwrite, replication, blockSize, progress, buffersize,
         conf.getInt("io.bytes.per.checksum", 512));
@@ -524,7 +523,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
     checkOpen();
     
     try {
-      XTraceContext.newTrace(taskId);
+      XTraceContext.newTrace();
       return namenode.recoverLease(src, clientName);
     } catch (RemoteException re) {
       throw re.unwrapRemoteException(FileNotFoundException.class,
@@ -549,7 +548,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
     checkOpen();
     FileStatus stat = null;
     LocatedBlock lastBlock = null;
-    XTraceContext.newTrace(taskId);
+    XTraceContext.newTrace();
     try {
       stat = getFileInfo(src);
       lastBlock = namenode.append(src, clientName);
@@ -579,7 +578,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
                                 short replication
                                 ) throws IOException {
     try {
-      XTraceContext.newTrace(taskId);
+      XTraceContext.newTrace();
       return namenode.setReplication(src, replication);
     } catch(RemoteException re) {
       throw re.unwrapRemoteException(AccessControlException.class,
@@ -597,7 +596,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
   public boolean rename(String src, String dst) throws IOException {
     checkOpen();
     try {
-      XTraceContext.newTrace(taskId);
+      XTraceContext.newTrace();
       return namenode.rename(src, dst);
     } catch(RemoteException re) {
       throw re.unwrapRemoteException(AccessControlException.class,
@@ -616,7 +615,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
   public boolean delete(String src) throws IOException {
     checkOpen();
     try {
-      XTraceContext.newTrace(taskId);
+      XTraceContext.newTrace();
       return namenode.delete(src, true);
     } finally {
       XTraceContext.endTrace();
@@ -631,7 +630,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
   public boolean delete(String src, boolean recursive) throws IOException {
     checkOpen();
     try {
-      XTraceContext.newTrace(taskId);
+      XTraceContext.newTrace();
       return namenode.delete(src, recursive);
     } catch(RemoteException re) {
       throw re.unwrapRemoteException(AccessControlException.class);
@@ -662,7 +661,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
   public FileStatus[] listPaths(String src) throws IOException {
     checkOpen();
     try {
-      XTraceContext.newTrace(taskId);
+      XTraceContext.newTrace();
       return namenode.getListing(src);
     } catch(RemoteException re) {
       throw re.unwrapRemoteException(AccessControlException.class);
@@ -674,7 +673,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
   public FileStatus getFileInfo(String src) throws IOException {
     checkOpen();
     try {
-      XTraceContext.newTrace(taskId);
+      XTraceContext.newTrace();
       return namenode.getFileInfo(src);
     } catch(RemoteException re) {
       throw re.unwrapRemoteException(AccessControlException.class);
@@ -691,18 +690,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
    */
   MD5MD5CRC32FileChecksum getFileChecksum(String src) throws IOException {
     checkOpen();
-    try {
-      XTraceContext.newTrace(taskId);
-      XTraceContext.callStart("DFSClient", "getFileChecksum");
-      MD5MD5CRC32FileChecksum ret = getFileChecksum(src, namenode, socketFactory, socketTimeout);    
-      XTraceContext.callEnd("DFSClient", "getFileChecksum");
-      XTraceContext.endTrace();
-      return ret;
-    } catch (IOException e) {
-      XTraceContext.callError("DFSClient", "getFileChecksum");
-      XTraceContext.endTrace();
-      throw e;
-    }
+    return getFileChecksum(src, namenode, socketFactory, socketTimeout);    
   }
 
   /**
@@ -714,6 +702,8 @@ public class DFSClient implements FSConstants, java.io.Closeable {
       ClientProtocol namenode, SocketFactory socketFactory, int socketTimeout
       ) throws IOException {
     //get all block locations
+    XTraceContext.newTrace();
+    XTraceContext.callStart("DFSClient", "getFileChecksum");
     final List<LocatedBlock> locatedblocks
         = callGetBlockLocations(namenode, src, 0, Long.MAX_VALUE).getLocatedBlocks();
     final DataOutputBuffer md5out = new DataOutputBuffer();
@@ -762,6 +752,8 @@ public class DFSClient implements FSConstants, java.io.Closeable {
          
           final short reply = in.readShort();
           if (reply != DataTransferProtocol.OP_STATUS_SUCCESS) {
+            XTraceContext.callError("DFSClient", "getFileChecksum");
+            XTraceContext.endTrace();
             throw new IOException("Bad response " + reply + " for block "
                 + block + " from datanode " + datanodes[j].getName());
           }
@@ -772,6 +764,8 @@ public class DFSClient implements FSConstants, java.io.Closeable {
             bytesPerCRC = bpc;
           }
           else if (bpc != bytesPerCRC) {
+            XTraceContext.callError("DFSClient", "getFileChecksum");
+            XTraceContext.endTrace();
             throw new IOException("Byte-per-checksum not matched: bpc=" + bpc
                 + " but bytesPerCRC=" + bytesPerCRC);
           }
@@ -807,12 +801,16 @@ public class DFSClient implements FSConstants, java.io.Closeable {
       }
 
       if (!done) {
+        XTraceContext.callError("DFSClient", "getFileChecksum");
+        XTraceContext.endTrace();
         throw new IOException("Fail to get block MD5 for " + block);
       }
     }
 
     //compute file MD5
     final MD5Hash fileMD5 = MD5Hash.digest(md5out.getData());
+    XTraceContext.callEnd("DFSClient", "getFileChecksum");
+    XTraceContext.endTrace();
     return new MD5MD5CRC32FileChecksum(bytesPerCRC, crcPerBlock, fileMD5);
   }
 
@@ -826,7 +824,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
                             ) throws IOException {
     checkOpen();
     try {
-      XTraceContext.newTrace(taskId);
+      XTraceContext.newTrace();
       namenode.setPermission(src, permission);
     } catch(RemoteException re) {
       throw re.unwrapRemoteException(AccessControlException.class,
@@ -847,7 +845,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
                       ) throws IOException {
     checkOpen();
     try {
-      XTraceContext.newTrace(taskId);
+      XTraceContext.newTrace();
       namenode.setOwner(src, username, groupname);
     } catch(RemoteException re) {
       throw re.unwrapRemoteException(AccessControlException.class,
@@ -858,7 +856,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
   }
 
   public DiskStatus getDiskStatus() throws IOException {
-    XTraceContext.newTrace(taskId);
+    XTraceContext.newTrace();
     long rawNums[] = namenode.getStats();
     XTraceContext.endTrace();
     return new DiskStatus(rawNums[0], rawNums[1], rawNums[2]);
@@ -866,7 +864,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
   /**
    */
   public long totalRawCapacity() throws IOException {
-    XTraceContext.newTrace(taskId);
+    XTraceContext.newTrace();
     long rawNums[] = namenode.getStats();
     XTraceContext.endTrace();
     return rawNums[0];
@@ -875,7 +873,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
   /**
    */
   public long totalRawUsed() throws IOException {
-    XTraceContext.newTrace(taskId);
+    XTraceContext.newTrace();
     long rawNums[] = namenode.getStats();
     XTraceContext.endTrace();
     return rawNums[1];
@@ -888,7 +886,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
    */ 
   public long getMissingBlocksCount() throws IOException {
     try {
-      XTraceContext.newTrace(taskId);
+      XTraceContext.newTrace();
       return namenode.getStats()[ClientProtocol.GET_STATS_MISSING_BLOCKS_IDX];
     } finally {
       XTraceContext.endTrace();
@@ -901,7 +899,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
    */ 
   public long getUnderReplicatedBlocksCount() throws IOException {
     try {
-      XTraceContext.newTrace(taskId);
+      XTraceContext.newTrace();
       return namenode.getStats()[ClientProtocol.GET_STATS_UNDER_REPLICATED_IDX];
     } finally {
       XTraceContext.endTrace();
@@ -914,7 +912,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
    */ 
   public long getCorruptBlocksCount() throws IOException {
     try {
-      XTraceContext.newTrace(taskId);
+      XTraceContext.newTrace();
       return namenode.getStats()[ClientProtocol.GET_STATS_CORRUPT_BLOCKS_IDX];
     } finally {
       XTraceContext.endTrace();
@@ -924,7 +922,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
   public DatanodeInfo[] datanodeReport(DatanodeReportType type)
   throws IOException {
     try {
-      XTraceContext.newTrace(taskId);
+      XTraceContext.newTrace();
       return namenode.getDatanodeReport(type);
     } finally {
       XTraceContext.endTrace();
@@ -940,7 +938,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
    */
   public boolean setSafeMode(SafeModeAction action) throws IOException {
     try {
-      XTraceContext.newTrace(taskId);
+      XTraceContext.newTrace();
       return namenode.setSafeMode(action);
     } finally {
       XTraceContext.endTrace();
@@ -956,7 +954,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
    */
   void saveNamespace() throws AccessControlException, IOException {
     try {
-      XTraceContext.newTrace(taskId);
+      XTraceContext.newTrace();
       namenode.saveNamespace();
     } catch(RemoteException re) {
       throw re.unwrapRemoteException(AccessControlException.class);
@@ -973,7 +971,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
    * @see ClientProtocol#refreshNodes()
    */
   public void refreshNodes() throws IOException {
-    XTraceContext.newTrace(taskId);
+    XTraceContext.newTrace();
     namenode.refreshNodes();
     XTraceContext.endTrace();
   }
@@ -986,7 +984,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
    * @see ClientProtocol#metaSave(String)
    */
   public void metaSave(String pathname) throws IOException {
-    XTraceContext.newTrace(taskId);
+    XTraceContext.newTrace();
     namenode.metaSave(pathname);
     XTraceContext.endTrace();
   }
@@ -995,7 +993,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
    * @see ClientProtocol#finalizeUpgrade()
    */
   public void finalizeUpgrade() throws IOException {
-    XTraceContext.newTrace(taskId);
+    XTraceContext.newTrace();
     namenode.finalizeUpgrade();
     XTraceContext.endTrace();
   }
@@ -1006,7 +1004,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
   public UpgradeStatusReport distributedUpgradeProgress(UpgradeAction action
                                                         ) throws IOException {
     try {
-      XTraceContext.newTrace(taskId);
+      XTraceContext.newTrace();
       return namenode.distributedUpgradeProgress(action);
     } finally {
       XTraceContext.endTrace();
@@ -1017,7 +1015,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
    */
   public boolean mkdirs(String src) throws IOException {
     try {
-      XTraceContext.newTrace(taskId);
+      XTraceContext.newTrace();
       return mkdirs(src, null);
     } finally {
       XTraceContext.endTrace();
@@ -1042,7 +1040,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
     FsPermission masked = permission.applyUMask(FsPermission.getUMask(conf));
     LOG.debug(src + ": masked=" + masked);
     try {
-      XTraceContext.newTrace(taskId);
+      XTraceContext.newTrace();
       return namenode.mkdirs(src, masked);
     } catch(RemoteException re) {
       throw re.unwrapRemoteException(AccessControlException.class,
@@ -1055,7 +1053,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
 
   ContentSummary getContentSummary(String src) throws IOException {
     try {
-      XTraceContext.newTrace(taskId);
+      XTraceContext.newTrace();
       return namenode.getContentSummary(src);
     } catch(RemoteException re) {
       throw re.unwrapRemoteException(AccessControlException.class,
@@ -1083,7 +1081,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
     }
     
     try {
-      XTraceContext.newTrace(taskId);
+      XTraceContext.newTrace();
       namenode.setQuota(src, namespaceQuota, diskspaceQuota);
     } catch(RemoteException re) {
       throw re.unwrapRemoteException(AccessControlException.class,
@@ -1102,7 +1100,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
   public void setTimes(String src, long mtime, long atime) throws IOException {
     checkOpen();
     try {
-      XTraceContext.newTrace(taskId);
+      XTraceContext.newTrace();
       namenode.setTimes(src, mtime, atime);
     } catch(RemoteException re) {
       throw re.unwrapRemoteException(AccessControlException.class,
@@ -1379,7 +1377,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
       // Read one chunk.
       
       //ww2
-      //XTraceContext.newTrace(taskId);
+      //XTraceContext.newTrace();
       //XTraceContext.callStart("DFSClient", "readChunk");
 
       if ( gotEOS ) {
@@ -1540,21 +1538,9 @@ public class DFSClient implements FSConstants, java.io.Closeable {
         byte[] md = XTraceContext.getThreadContext().pack();
         out.writeInt(md.length);
         out.write(md);
-        String taskId = XTraceContext.gettId();
-        if (taskId == null) {
-          taskId = "UNKNOWN";
-          XTraceContext.settId(taskId);
-        }
-
-        byte[] bytes = taskId.getBytes();
-        out.writeInt(bytes.length);
-        out.write(bytes);
       } else {
         out.writeInt(-1);
-        out.writeInt(-1);
       }
-
-                                       
 
       out.flush();
       
@@ -1682,7 +1668,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
     
     DFSInputStream(String src, int buffersize, boolean verifyChecksum
                    ) throws IOException {
-      XTraceContext.newTrace(taskId);
+      XTraceContext.newTrace();
       XTraceContext.callStart("DFSClient", "open");
       this.verifyChecksum = verifyChecksum;
       this.buffersize = buffersize;
@@ -1871,11 +1857,6 @@ public class DFSClient implements FSConstants, java.io.Closeable {
         s.close();
         s = null;
       }
-      
-      if (XTraceContext.gettId() == null)
-        XTraceContext.settId(taskId);
-      XTraceContext.newTrace(taskId);
-      XTraceContext.callStart("DFSClient", "blockSeekTo");
 
       //
       // Compute desired block
@@ -1888,6 +1869,8 @@ public class DFSClient implements FSConstants, java.io.Closeable {
       // Connect to best DataNode for desired Block, with potential offset
       //
       DatanodeInfo chosenNode = null;
+      XTraceContext.newTrace();
+      XTraceContext.callStart("DFSClient", "blockSeekTo");
       while (s == null) {
         DNAddrPair retval = chooseDataNode(targetBlock);
         chosenNode = retval.info;
@@ -1898,12 +1881,11 @@ public class DFSClient implements FSConstants, java.io.Closeable {
           NetUtils.connect(s, targetAddr, socketTimeout);
           s.setSoTimeout(socketTimeout);
           Block blk = targetBlock.getBlock();
-          XTraceContext.callStart("DFSClient", "newBlockReader"); 
+          
           blockReader = BlockReader.newBlockReader(s, src, blk.getBlockId(), 
               blk.getGenerationStamp(),
               offsetIntoBlock, blk.getNumBytes() - offsetIntoBlock,
               buffersize, verifyChecksum, clientName);
-          XTraceContext.callEnd("DFSClient", "newBlockReader"); 
           XTraceContext.callEnd("DFSClient", "blockSeekTo");
           XTraceContext.endTrace();
           return chosenNode;
@@ -2553,7 +2535,6 @@ public class DFSClient implements FSConstants, java.io.Closeable {
   
       public void run() {
         long lastPacket = 0;
-        XTraceContext.settId(taskId);
 
         while (!closed && clientRunning) {
 
@@ -2607,7 +2588,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
               // get new block from namenode.
               if (blockStream == null) {
                 LOG.debug("Allocating new block");
-                XTraceContext.newTrace(taskId);
+                XTraceContext.newTrace();
                 XTraceContext.newBlock("DFSClient");
                 nodes = nextBlockOutputStream(src); 
                 this.setName("DataStreamer for file " + src +
@@ -2751,7 +2732,6 @@ public class DFSClient implements FSConstants, java.io.Closeable {
       public void run() {
 
         this.setName("ResponseProcessor for block " + block);
-        XTraceContext.settId(taskId);
         PipelineAck ack = new PipelineAck();
   
         while (!closed && clientRunning && !lastPacketInBlock) {
@@ -3253,21 +3233,9 @@ public class DFSClient implements FSConstants, java.io.Closeable {
           byte[] md = XTraceContext.getThreadContext().pack();
           out.writeInt(md.length);
           out.write(md);
-          String taskId = XTraceContext.gettId();
-          if (taskId == null) {
-            taskId = "UNKNOWN";
-            XTraceContext.settId(taskId);
-          }
-
-          byte[] bytes = taskId.getBytes();
-          out.writeInt(bytes.length);
-          out.write(bytes);
         } else {
           out.writeInt(-1);
-          out.writeInt(-1);
         }
-        
-
 
         checksum.writeHeader( out );
         out.flush();

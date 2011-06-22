@@ -39,8 +39,6 @@ import org.apache.hadoop.util.ChecksumUtil;
 import org.apache.hadoop.util.DataChecksum;
 import org.apache.hadoop.util.StringUtils;
 
-import edu.berkeley.xtrace.*;
-
 /**
  * Reads a block from the disk and sends it to a recipient.
  */
@@ -262,10 +260,7 @@ class BlockSender implements java.io.Closeable, FSConstants {
     pkt.putLong(seqno);
     pkt.put((byte)((offset + len >= endOffset) ? 1 : 0));
                //why no ByteBuf.putBoolean()?
-    if (XTraceContext.isValid())
-      pkt.put(XTraceContext.getThreadContext().pack());
-    else
-      pkt.put(new byte[17]);
+    pkt.put(new byte[17]);
     pkt.putInt(len);
     
     int checksumOff = pkt.position();
