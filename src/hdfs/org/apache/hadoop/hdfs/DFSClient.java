@@ -344,7 +344,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
    */
   public BlockLocation[] getBlockLocations(String src, long start, 
     long length) throws IOException {
-    XTraceContext.newTrace();
+    XTraceContext.newTrace(taskId);
     LocatedBlocks blocks = callGetBlockLocations(namenode, src, start, length);
     XTraceContext.endTrace();
     if (blocks == null) {
@@ -505,7 +505,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
     }
     FsPermission masked = permission.applyUMask(FsPermission.getUMask(conf));
     LOG.debug(src + ": masked=" + masked);
-    XTraceContext.newTrace();
+    XTraceContext.newTrace(taskId);
     OutputStream result = new DFSOutputStream(src, masked,
         overwrite, replication, blockSize, progress, buffersize,
         conf.getInt("io.bytes.per.checksum", 512));
@@ -524,7 +524,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
     checkOpen();
     
     try {
-      XTraceContext.newTrace();
+      XTraceContext.newTrace(taskId);
       return namenode.recoverLease(src, clientName);
     } catch (RemoteException re) {
       throw re.unwrapRemoteException(FileNotFoundException.class,
@@ -549,7 +549,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
     checkOpen();
     FileStatus stat = null;
     LocatedBlock lastBlock = null;
-    XTraceContext.newTrace();
+    XTraceContext.newTrace(taskId);
     try {
       stat = getFileInfo(src);
       lastBlock = namenode.append(src, clientName);
@@ -579,7 +579,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
                                 short replication
                                 ) throws IOException {
     try {
-      XTraceContext.newTrace();
+      XTraceContext.newTrace(taskId);
       return namenode.setReplication(src, replication);
     } catch(RemoteException re) {
       throw re.unwrapRemoteException(AccessControlException.class,
@@ -597,7 +597,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
   public boolean rename(String src, String dst) throws IOException {
     checkOpen();
     try {
-      XTraceContext.newTrace();
+      XTraceContext.newTrace(taskId);
       return namenode.rename(src, dst);
     } catch(RemoteException re) {
       throw re.unwrapRemoteException(AccessControlException.class,
@@ -616,7 +616,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
   public boolean delete(String src) throws IOException {
     checkOpen();
     try {
-      XTraceContext.newTrace();
+      XTraceContext.newTrace(taskId);
       return namenode.delete(src, true);
     } finally {
       XTraceContext.endTrace();
@@ -631,7 +631,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
   public boolean delete(String src, boolean recursive) throws IOException {
     checkOpen();
     try {
-      XTraceContext.newTrace();
+      XTraceContext.newTrace(taskId);
       return namenode.delete(src, recursive);
     } catch(RemoteException re) {
       throw re.unwrapRemoteException(AccessControlException.class);
@@ -662,7 +662,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
   public FileStatus[] listPaths(String src) throws IOException {
     checkOpen();
     try {
-      XTraceContext.newTrace();
+      XTraceContext.newTrace(taskId);
       return namenode.getListing(src);
     } catch(RemoteException re) {
       throw re.unwrapRemoteException(AccessControlException.class);
@@ -674,7 +674,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
   public FileStatus getFileInfo(String src) throws IOException {
     checkOpen();
     try {
-      XTraceContext.newTrace();
+      XTraceContext.newTrace(taskId);
       return namenode.getFileInfo(src);
     } catch(RemoteException re) {
       throw re.unwrapRemoteException(AccessControlException.class);
@@ -825,7 +825,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
                             ) throws IOException {
     checkOpen();
     try {
-      XTraceContext.newTrace();
+      XTraceContext.newTrace(taskId);
       namenode.setPermission(src, permission);
     } catch(RemoteException re) {
       throw re.unwrapRemoteException(AccessControlException.class,
@@ -846,7 +846,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
                       ) throws IOException {
     checkOpen();
     try {
-      XTraceContext.newTrace();
+      XTraceContext.newTrace(taskId);
       namenode.setOwner(src, username, groupname);
     } catch(RemoteException re) {
       throw re.unwrapRemoteException(AccessControlException.class,
@@ -857,7 +857,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
   }
 
   public DiskStatus getDiskStatus() throws IOException {
-    XTraceContext.newTrace();
+    XTraceContext.newTrace(taskId);
     long rawNums[] = namenode.getStats();
     XTraceContext.endTrace();
     return new DiskStatus(rawNums[0], rawNums[1], rawNums[2]);
@@ -865,7 +865,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
   /**
    */
   public long totalRawCapacity() throws IOException {
-    XTraceContext.newTrace();
+    XTraceContext.newTrace(taskId);
     long rawNums[] = namenode.getStats();
     XTraceContext.endTrace();
     return rawNums[0];
@@ -874,7 +874,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
   /**
    */
   public long totalRawUsed() throws IOException {
-    XTraceContext.newTrace();
+    XTraceContext.newTrace(taskId);
     long rawNums[] = namenode.getStats();
     XTraceContext.endTrace();
     return rawNums[1];
@@ -887,7 +887,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
    */ 
   public long getMissingBlocksCount() throws IOException {
     try {
-      XTraceContext.newTrace();
+      XTraceContext.newTrace(taskId);
       return namenode.getStats()[ClientProtocol.GET_STATS_MISSING_BLOCKS_IDX];
     } finally {
       XTraceContext.endTrace();
@@ -900,7 +900,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
    */ 
   public long getUnderReplicatedBlocksCount() throws IOException {
     try {
-      XTraceContext.newTrace();
+      XTraceContext.newTrace(taskId);
       return namenode.getStats()[ClientProtocol.GET_STATS_UNDER_REPLICATED_IDX];
     } finally {
       XTraceContext.endTrace();
@@ -913,7 +913,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
    */ 
   public long getCorruptBlocksCount() throws IOException {
     try {
-      XTraceContext.newTrace();
+      XTraceContext.newTrace(taskId);
       return namenode.getStats()[ClientProtocol.GET_STATS_CORRUPT_BLOCKS_IDX];
     } finally {
       XTraceContext.endTrace();
@@ -923,7 +923,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
   public DatanodeInfo[] datanodeReport(DatanodeReportType type)
   throws IOException {
     try {
-      XTraceContext.newTrace();
+      XTraceContext.newTrace(taskId);
       return namenode.getDatanodeReport(type);
     } finally {
       XTraceContext.endTrace();
@@ -939,7 +939,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
    */
   public boolean setSafeMode(SafeModeAction action) throws IOException {
     try {
-      XTraceContext.newTrace();
+      XTraceContext.newTrace(taskId);
       return namenode.setSafeMode(action);
     } finally {
       XTraceContext.endTrace();
@@ -955,7 +955,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
    */
   void saveNamespace() throws AccessControlException, IOException {
     try {
-      XTraceContext.newTrace();
+      XTraceContext.newTrace(taskId);
       namenode.saveNamespace();
     } catch(RemoteException re) {
       throw re.unwrapRemoteException(AccessControlException.class);
@@ -972,7 +972,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
    * @see ClientProtocol#refreshNodes()
    */
   public void refreshNodes() throws IOException {
-    XTraceContext.newTrace();
+    XTraceContext.newTrace(taskId);
     namenode.refreshNodes();
     XTraceContext.endTrace();
   }
@@ -985,7 +985,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
    * @see ClientProtocol#metaSave(String)
    */
   public void metaSave(String pathname) throws IOException {
-    XTraceContext.newTrace();
+    XTraceContext.newTrace(taskId);
     namenode.metaSave(pathname);
     XTraceContext.endTrace();
   }
@@ -994,7 +994,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
    * @see ClientProtocol#finalizeUpgrade()
    */
   public void finalizeUpgrade() throws IOException {
-    XTraceContext.newTrace();
+    XTraceContext.newTrace(taskId);
     namenode.finalizeUpgrade();
     XTraceContext.endTrace();
   }
@@ -1005,7 +1005,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
   public UpgradeStatusReport distributedUpgradeProgress(UpgradeAction action
                                                         ) throws IOException {
     try {
-      XTraceContext.newTrace();
+      XTraceContext.newTrace(taskId);
       return namenode.distributedUpgradeProgress(action);
     } finally {
       XTraceContext.endTrace();
@@ -1016,7 +1016,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
    */
   public boolean mkdirs(String src) throws IOException {
     try {
-      XTraceContext.newTrace();
+      XTraceContext.newTrace(taskId);
       return mkdirs(src, null);
     } finally {
       XTraceContext.endTrace();
@@ -1041,7 +1041,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
     FsPermission masked = permission.applyUMask(FsPermission.getUMask(conf));
     LOG.debug(src + ": masked=" + masked);
     try {
-      XTraceContext.newTrace();
+      XTraceContext.newTrace(taskId);
       return namenode.mkdirs(src, masked);
     } catch(RemoteException re) {
       throw re.unwrapRemoteException(AccessControlException.class,
@@ -1054,7 +1054,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
 
   ContentSummary getContentSummary(String src) throws IOException {
     try {
-      XTraceContext.newTrace();
+      XTraceContext.newTrace(taskId);
       return namenode.getContentSummary(src);
     } catch(RemoteException re) {
       throw re.unwrapRemoteException(AccessControlException.class,
@@ -1082,7 +1082,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
     }
     
     try {
-      XTraceContext.newTrace();
+      XTraceContext.newTrace(taskId);
       namenode.setQuota(src, namespaceQuota, diskspaceQuota);
     } catch(RemoteException re) {
       throw re.unwrapRemoteException(AccessControlException.class,
@@ -1101,7 +1101,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
   public void setTimes(String src, long mtime, long atime) throws IOException {
     checkOpen();
     try {
-      XTraceContext.newTrace();
+      XTraceContext.newTrace(taskId);
       namenode.setTimes(src, mtime, atime);
     } catch(RemoteException re) {
       throw re.unwrapRemoteException(AccessControlException.class,
@@ -1677,7 +1677,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
     
     DFSInputStream(String src, int buffersize, boolean verifyChecksum
                    ) throws IOException {
-      XTraceContext.newTrace();
+      XTraceContext.newTrace(taskId);
       XTraceContext.callStart("DFSClient", "open");
       this.verifyChecksum = verifyChecksum;
       this.buffersize = buffersize;
@@ -1878,7 +1878,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
       // Connect to best DataNode for desired Block, with potential offset
       //
       DatanodeInfo chosenNode = null;
-      XTraceContext.newTrace();
+      XTraceContext.newTrace(taskId);
       XTraceContext.callStart("DFSClient", "blockSeekTo");
       while (s == null) {
         DNAddrPair retval = chooseDataNode(targetBlock);
