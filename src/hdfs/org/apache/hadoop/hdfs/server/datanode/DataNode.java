@@ -1177,6 +1177,7 @@ public class DataNode extends Configured
 
         //ww2, padding to make it compatible with instrumentation changes
         out.writeInt(-1);
+        out.writeInt(-1);
 
         // send data & checksum
         blockSender.sendBlock(out, baseStream, null);

@@ -140,6 +140,7 @@ public class Client {
 
     //ww2
     XTraceMetadata metadata;
+    String taskId;
 
     protected Call(Writable param) {
       this.param = param;
@@ -549,6 +550,7 @@ public class Client {
         Call call = calls.get(id);
 
         XTraceMetadata oldContext = XTraceContext.switchThreadContext(metadata);
+        XTraceContext.settId(call.taskId);
         call.metadata = metadata;
 
         int state = in.readInt();     // read call status
@@ -788,6 +790,7 @@ public class Client {
 
     // ww2
     call.metadata = XTraceContext.rpcStart(1)[0];
+    call.taskId = XTraceContext.gettId();
 
     Connection connection = getConnection(addr, protocol, ticket, call);
     connection.sendParam(call);                 // send the parameter

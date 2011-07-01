@@ -1543,6 +1543,14 @@ public class DFSClient implements FSConstants, java.io.Closeable {
         out.writeInt(-1);
       }
 
+      if (XTraceContext.gettId() != null) {
+        byte[] bytes = XTraceContext.gettId().getBytes();
+        out.writeInt(bytes.length);
+        out.write(bytes);
+      } else {
+        out.writeInt(-1);
+      }
+
       out.flush();
       
       //
@@ -3242,6 +3250,14 @@ public class DFSClient implements FSConstants, java.io.Closeable {
           byte[] md = XTraceContext.getThreadContext().pack();
           out.writeInt(md.length);
           out.write(md);
+        } else {
+          out.writeInt(-1);
+        }
+      
+        if (XTraceContext.gettId() != null) {
+          byte[] bytes = XTraceContext.gettId().getBytes();
+          out.writeInt(bytes.length);
+          out.write(bytes);
         } else {
           out.writeInt(-1);
         }
