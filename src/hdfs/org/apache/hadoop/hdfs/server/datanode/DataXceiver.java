@@ -203,12 +203,13 @@ class DataXceiver implements Runnable, FSConstants {
         blockSender = new BlockSender(block, startOffset, length,
             true, true, false, datanode, clientTraceFmt);
       } catch(IOException e) {
-        XTraceContext.callEnd("Datanode", "newBlockSender");
+        XTraceContext.callError("Datanode", "newBlockSender");
         out.writeShort(DataTransferProtocol.OP_STATUS_ERROR);
 
         writeXTraceMetadata(out);
         throw e;
       }
+      XTraceContext.callEnd("Datanode", "newBlockSender");
 
       out.writeShort(DataTransferProtocol.OP_STATUS_SUCCESS); // send op status
       writeXTraceMetadata(out); 
