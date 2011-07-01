@@ -87,6 +87,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
   final int writePacketSize;
   private final FileSystem.Statistics stats;
   private int maxBlockAcquireFailures;
+  String taskId;
 
   /**
    * We assume we're talking to another CDH server, which supports
@@ -204,15 +205,15 @@ public class DFSClient implements FSConstants, java.io.Closeable {
       throw (IOException)(new IOException().initCause(e));
     }
 
-    String taskId = conf.get("mapred.task.id");
+    taskId = conf.get("mapred.task.id");
     if (taskId != null) {
       this.clientName = "DFSClient_" + taskId; 
-      XTraceContext.settId(taskId);
     } else {
       int id = r.nextInt();
       this.clientName = "DFSClient_" + id;
-      XTraceContext.settId(String.valueOf(id));
+      taskId = String.valueOf(id);
     }
+    XTraceContext.settId(taskId);
     defaultBlockSize = conf.getLong("dfs.block.size", DEFAULT_BLOCK_SIZE);
     defaultReplication = (short) conf.getInt("dfs.replication", 3);
 
@@ -2496,13 +2497,15 @@ public class DFSClient implements FSConstants, java.io.Closeable {
         buffer.put((byte) ((lastPacketInBlock) ? 1 : 0));
 
         //ww2
-        byte[] md;
+        //Padding 
+        buffer.put(new byte[17]);
+        /*byte[] md;
         if (XTraceContext.isValid() && (md = XTraceContext.getThreadContext().pack()).length == 17)
           buffer.put(md);
         else {
           buffer.put(new byte[17]);
           XTraceContext.setThreadContext(null);
-        }
+        }*/
 
         //end of pkt header
         buffer.putInt(dataLen); // actual data length, excluding checksum.
@@ -2535,6 +2538,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
   
       public void run() {
         long lastPacket = 0;
+        XTraceContext.settId(taskId);
 
         while (!closed && clientRunning) {
 
@@ -2620,6 +2624,11 @@ public class DFSClient implements FSConstants, java.io.Closeable {
               
               // write out data to remote datanode
               previousSend = XTraceContext.sendPacket("DFSClient", one.seqno, previousSend);
+              buf.position(buf.position() + DataNode.PKT_HEADER_LEN - 17);
+              byte[] md;
+              if (XTraceContext.isValid() && (md = XTraceContext.getThreadContext().pack()).length == 17)
+                buf.put(md);
+              buf.reset();
               blockStream.write(buf.array(), buf.position(), buf.remaining());
               
               if (one.lastPacketInBlock) {
