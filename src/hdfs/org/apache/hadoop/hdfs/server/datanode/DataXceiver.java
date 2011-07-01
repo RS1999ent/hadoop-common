@@ -87,7 +87,7 @@ class DataXceiver implements Runnable, FSConstants {
     if (length > 0) {
       byte[] md = new byte[length];
       in.readFully(md);
-      XTraceMetadata metadata = XTraceMetadata.createFromBytes(md, 0, md.length);
+      XTraceMetadata metadata = XTraceMetadata.createFromBytes(md, 0, md.length).newOpId();
       XTraceContext.setThreadContext(metadata);
     } else
       XTraceContext.setThreadContext(null);
