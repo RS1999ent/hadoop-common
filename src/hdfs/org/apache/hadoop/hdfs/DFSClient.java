@@ -2749,6 +2749,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
       public void run() {
 
         this.setName("ResponseProcessor for block " + block);
+        XTraceContext.settId(taskId);
         PipelineAck ack = new PipelineAck();
   
         while (!closed && clientRunning && !lastPacketInBlock) {

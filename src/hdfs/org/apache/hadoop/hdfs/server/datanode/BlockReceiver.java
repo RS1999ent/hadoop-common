@@ -82,6 +82,7 @@ class BlockReceiver implements java.io.Closeable, FSConstants {
   //ww2 
   private XTraceMetadata previousAccept = null;
   private XTraceMetadata previousSend = null;
+  private String taskId;
 
   BlockReceiver(Block block, DataInputStream in, String inAddr,
                 String myAddr, boolean isRecovery, String clientName, 
@@ -134,6 +135,7 @@ class BlockReceiver implements java.io.Closeable, FSConstants {
       
       throw ioe;
     }
+    taskId = XTraceContext.gettId();
   }
 
   /**
@@ -796,6 +798,7 @@ class BlockReceiver implements java.io.Closeable, FSConstants {
     public void run() {
       boolean lastPacketInBlock = false;
       boolean isInterrupted = false;
+      XTraceContext.settId(taskId);
       while (running && datanode.shouldRun && !lastPacketInBlock) {
 
         try {
