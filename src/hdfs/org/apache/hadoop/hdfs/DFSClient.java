@@ -1870,6 +1870,8 @@ public class DFSClient implements FSConstants, java.io.Closeable {
       //
       // Compute desired block
       //
+      XTraceContext.newTrace(taskId);
+      XTraceContext.callStart("DFSClient", "blockSeekTo");
       LocatedBlock targetBlock = getBlockAt(target, true);
       assert (target==this.pos) : "Wrong postion " + pos + " expect " + target;
       long offsetIntoBlock = target - targetBlock.getStartOffset();
@@ -1878,8 +1880,6 @@ public class DFSClient implements FSConstants, java.io.Closeable {
       // Connect to best DataNode for desired Block, with potential offset
       //
       DatanodeInfo chosenNode = null;
-      XTraceContext.newTrace(taskId);
-      XTraceContext.callStart("DFSClient", "blockSeekTo");
       while (s == null) {
         DNAddrPair retval = chooseDataNode(targetBlock);
         chosenNode = retval.info;
@@ -2009,6 +2009,8 @@ public class DFSClient implements FSConstants, java.io.Closeable {
       }
       failures = 0;
 
+      XTraceContext.newTrace(taskId);
+      XTraceContext.callStart("DFSClient", "read");
       if (pos < getFileLength()) {
         int retries = 2;
         while (retries > 0) {
@@ -2028,8 +2030,10 @@ public class DFSClient implements FSConstants, java.io.Closeable {
             if (stats != null && result != -1) {
               stats.incrementBytesRead(result);
             }
+            XTraceContext.callEnd("DFSClient", "read");
             return result;
           } catch (ChecksumException ce) {
+            XTraceContext.callError("DFSClient", "read");
             throw ce;            
           } catch (IOException e) {
             if (retries == 1) {
@@ -2038,11 +2042,13 @@ public class DFSClient implements FSConstants, java.io.Closeable {
             blockEnd = -1;
             if (currentNode != null) { addToDeadNodes(currentNode); }
             if (--retries == 0) {
+              XTraceContext.callError("DFSClient", "read");
               throw e;
             }
           }
         }
       }
+      XTraceContext.callEnd("DFSClient", "read");
       return -1;
     }
 
