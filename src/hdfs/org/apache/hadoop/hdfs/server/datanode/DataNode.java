@@ -17,6 +17,8 @@
  */
 package org.apache.hadoop.hdfs.server.datanode;
 
+import edu.berkeley.xtrace.XTraceSampling;
+
 import java.io.BufferedOutputStream;
 import java.io.DataOutputStream;
 import java.io.File;
@@ -73,6 +75,7 @@ import org.apache.hadoop.hdfs.server.protocol.DatanodeRegistration;
 import org.apache.hadoop.hdfs.server.protocol.DisallowedDatanodeException;
 import org.apache.hadoop.hdfs.server.protocol.InterDatanodeProtocol;
 import org.apache.hadoop.hdfs.server.protocol.NamespaceInfo;
+import org.apache.hadoop.hdfs.server.protocol.SamplingCommand;
 import org.apache.hadoop.hdfs.server.protocol.UpgradeCommand;
 import org.apache.hadoop.http.HttpServer;
 import org.apache.hadoop.io.IOUtils;
@@ -872,7 +875,9 @@ public class DataNode extends Configured
     if (cmd == null)
       return true;
     final BlockCommand bcmd = cmd instanceof BlockCommand? (BlockCommand)cmd: null;
-
+    final SamplingCommand scmd = cmd instanceof SamplingCommand
+            ? (SamplingCommand)cmd 
+            : null;
     switch(cmd.getAction()) {
     case DatanodeProtocol.DNA_TRANSFER:
       // Send a copy of a block to another datanode
@@ -917,6 +922,8 @@ public class DataNode extends Configured
     case DatanodeProtocol.DNA_RECOVERBLOCK:
       recoverBlocks(bcmd.getBlocks(), bcmd.getTargets());
       break;
+    case DatanodeProtocol.DNA_SETSAMPLING: 
+      setRequestSamplingPercentage(scmd.getSamplingPercentage());
     default:
       LOG.warn("Unknown DatanodeCommand action: " + cmd.getAction());
     }
@@ -1018,6 +1025,16 @@ public class DataNode extends Configured
     }
   }
 
+  /**
+   * Sets the @link{org.berkeley.xtrace} request-sampling percentage.  This
+   * value controls the percentage of requests for which XTrace trace data will 
+   * be collected
+   * @param samplingPercentage: The sampling percentage to use
+   */
+  private void setRequestSamplingPercentage(int samplingPercentage) {
+    LOG.info("Setting sampling percentage to: " + samplingPercentage);
+    XTraceSampling.setSamplingPercentage(samplingPercentage);
+  }
   
 
 

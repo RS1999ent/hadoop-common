@@ -87,7 +87,7 @@ public class DFSClient implements FSConstants, java.io.Closeable {
   final int writePacketSize;
   private final FileSystem.Statistics stats;
   private int maxBlockAcquireFailures;
-  String taskId;
+  private String taskId;
 
   /**
    * We assume we're talking to another CDH server, which supports

@@ -2398,6 +2398,11 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean {
         if (cmd != null) {
           cmds.add(cmd);
         }
+        //send updated sampling rate
+        cmd = nodeinfo.getSamplingCommand();
+        if (cmd != null) {
+          cmds.add(cmd);
+        }
         if (!cmds.isEmpty()) {
           return cmds.toArray(new DatanodeCommand[cmds.size()]);
         }

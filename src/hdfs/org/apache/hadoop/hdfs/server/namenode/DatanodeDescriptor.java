@@ -17,6 +17,7 @@
  */
 package org.apache.hadoop.hdfs.server.namenode;
 
+import edu.berkeley.xtrace.XTraceSampling;
 import java.io.DataInput;
 import java.io.IOException;
 import java.util.*;
@@ -29,6 +30,7 @@ import org.apache.hadoop.hdfs.server.common.GenerationStamp;
 import org.apache.hadoop.hdfs.server.namenode.BlocksMap.BlockInfo;
 import org.apache.hadoop.hdfs.server.protocol.BlockCommand;
 import org.apache.hadoop.hdfs.server.protocol.DatanodeProtocol;
+import org.apache.hadoop.hdfs.server.protocol.SamplingCommand;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.UTF8;
 import org.apache.hadoop.io.WritableUtils;
@@ -313,6 +315,12 @@ public class DatanodeDescriptor extends DatanodeInfo {
     List<BlockTargetPair> blocktargetlist = recoverBlocks.poll(maxTransfers);
     return blocktargetlist == null? null:
         new BlockCommand(DatanodeProtocol.DNA_RECOVERBLOCK, blocktargetlist);
+  }
+  
+  SamplingCommand getSamplingCommand() {
+    return new SamplingCommand(
+            DatanodeProtocol.DNA_SETSAMPLING,
+            XTraceSampling.getSamplingPercentage());
   }
 
   /**

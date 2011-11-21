@@ -17,6 +17,7 @@
  */
 package org.apache.hadoop.hdfs.server.namenode;
 
+import edu.berkeley.xtrace.server.sampling.SamplingPercentageServer;
 import org.apache.commons.logging.*;
 
 import org.apache.hadoop.fs.ContentSummary;
@@ -204,10 +205,24 @@ public class NameNode implements ClientProtocol, DatanodeProtocol,
 
     this.namesystem = new FSNamesystem(this, conf);
     startHttpServer(conf);
+    startSamplingPercentageServer();
     this.server.start();  //start RPC server   
     startTrashEmptier(conf);
+    
   }
 
+  /**
+   * Starts a daemeon thread that listens for updates to the 
+   * @link{edu.berkeley.xtrace} sampling rate and sets it in the namenode.  
+   * The namenode periodically sends the current value to datanodes by 
+   * piggybacking it on responses to Heartbeat messages.  See 
+   * @link{SamplingCommand} and @link{DatanodeCommand}.
+   */
+  private void startSamplingPercentageServer() {
+    SamplingPercentageServer server = new SamplingPercentageServer();
+    server.StartServer();
+  }
+  
   private void startTrashEmptier(Configuration conf) throws IOException {
     this.emptier = new Thread(new Trash(conf).getEmptier(), "Trash Emptier");
     this.emptier.setDaemon(true);
