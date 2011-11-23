@@ -718,6 +718,11 @@ public class NameNode implements ClientProtocol, DatanodeProtocol,
   public void setTimes(String src, long mtime, long atime) throws IOException {
     namesystem.setTimes(src, mtime, atime);
   }
+  
+  /** {@inheritDoc} */
+  public int getRequestSamplingPercentage() {
+    return namesystem.getRequestSamplingPercentage();
+  }
 
   ////////////////////////////////////////////////////////////////
   // DatanodeProtocol

@@ -17,6 +17,7 @@
  */
 package org.apache.hadoop.hdfs.server.namenode;
 
+import edu.berkeley.xtrace.XTraceSampling;
 import org.apache.commons.logging.*;
 
 import org.apache.hadoop.conf.*;
@@ -896,6 +897,15 @@ public class FSNamesystem implements FSConstants, FSNamesystemMBean {
     } else {
       throw new FileNotFoundException("File " + src + " does not exist.");
     }
+  }
+  
+  /**
+   * Returns the current request-sampling percentage used by the
+   * @link{edu.berkeley.xtrace} library
+   * @return the current request-sampling percentage 
+   */
+  public int getRequestSamplingPercentage() {
+    return XTraceSampling.getSamplingPercentage();
   }
 
   /**

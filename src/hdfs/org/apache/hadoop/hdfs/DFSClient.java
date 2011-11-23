@@ -228,6 +228,12 @@ public class DFSClient implements FSConstants, java.io.Closeable {
           "Expecting exactly one of nameNodeAddr and rpcNamenode being null: "
           + "nameNodeAddr=" + nameNodeAddr + ", rpcNamenode=" + rpcNamenode);
     }
+    
+    /* Start daemon thread to obtain the current XTrace request-sampling 
+     * percentage from the namenode
+     */
+    DFSClientRequestSampling sampling_thread = new DFSClientRequestSampling(this);
+    sampling_thread.StartServer();
   }
 
   static int getMaxBlockAcquireFailures(Configuration conf) {
@@ -1109,6 +1115,14 @@ public class DFSClient implements FSConstants, java.io.Closeable {
     } finally {
       XTraceContext.endTrace();
     }
+  }
+  
+  public int getRequestSamplingPercentage() {    
+    int value;
+    XTraceContext.newTrace(taskId);
+    value = namenode.getRequestSamplingPercentage();
+    XTraceContext.endTrace();
+    return value;
   }
 
   /**
