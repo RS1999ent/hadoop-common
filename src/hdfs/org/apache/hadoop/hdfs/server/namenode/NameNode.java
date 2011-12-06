@@ -17,7 +17,7 @@
  */
 package org.apache.hadoop.hdfs.server.namenode;
 
-import edu.berkeley.xtrace.server.sampling.SamplingPercentageServer;
+import edu.berkeley.xtrace.samplingserver.SamplingPercentageServer;
 import org.apache.commons.logging.*;
 
 import org.apache.hadoop.fs.ContentSummary;
