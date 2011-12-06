@@ -924,6 +924,7 @@ public class DataNode extends Configured
       break;
     case DatanodeProtocol.DNA_SETSAMPLING: 
       setRequestSamplingPercentage(scmd.getSamplingPercentage());
+      break;
     default:
       LOG.warn("Unknown DatanodeCommand action: " + cmd.getAction());
     }
@@ -1032,8 +1033,10 @@ public class DataNode extends Configured
    * @param samplingPercentage: The sampling percentage to use
    */
   private void setRequestSamplingPercentage(int samplingPercentage) {
-    LOG.info("Setting sampling percentage to: " + samplingPercentage);
-    XTraceSampling.setSamplingPercentage(samplingPercentage);
+      if (XTraceSampling.getSamplingPercentage() != samplingPercentage) {
+        LOG.info("Setting sampling percentage to: " + samplingPercentage);
+       XTraceSampling.setSamplingPercentage(samplingPercentage);
+      }
   }
   
 
